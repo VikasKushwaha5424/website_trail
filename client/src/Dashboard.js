@@ -1,79 +1,79 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import './Dashboard.css';
 
 const Dashboard = () => {
-  const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [lastLogin, setLastLogin] = useState("");
 
   useEffect(() => {
-    // 1. Check if user is logged in
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
-      navigate("/"); // If not logged in, kick them back to Login
+    const storedData = localStorage.getItem('userInfo');
+    const storedTime = localStorage.getItem('loginTime');
+
+    if (!storedData) {
+      navigate('/');
     } else {
-      setUser(JSON.parse(storedUser));
+      const parsedData = JSON.parse(storedData);
+      
+      // --- THE FIX IS HERE ---
+      // We check: Is the user info inside a 'user' folder? 
+      // If yes, use parsedData.user. If no, use parsedData directly.
+      const realUser = parsedData.user ? parsedData.user : parsedData;
+      
+      setUser(realUser);
+      setLastLogin(storedTime);
     }
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem("user"); // Clear data
-    navigate("/"); // Go back to login
+    localStorage.removeItem('userInfo');
+    localStorage.removeItem('loginTime');
+    navigate('/');
   };
 
-  if (!user) return <div>Loading...</div>;
+  if (!user) return null;
 
   return (
-    <div style={styles.container}>
-      {/* Header Section */}
-      <div style={styles.header}>
-        <h1>Welcome, {user.username}!</h1>
-        <span style={styles.roleTag}>{user.role}</span>
-        <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-      </div>
-
-      {/* Role-Based Content Section */}
-      <div style={styles.content}>
+    <div className="dashboard-wrapper">
+      <div className="dashboard-card">
         
-        {/* If user is a STUDENT */}
-        {user.role === "STUDENT" && (
-            <div style={styles.card}>
-                <h3>🎓 Student Portal</h3>
-                <p>View your marks, attendance, and schedule here.</p>
-                <button style={styles.actionBtn}>View My Marks</button>
-            </div>
-        )}
+        <div className="profile-header">
+          <div className="avatar">
+            {/* Now this will correctly find the roll number */}
+            {user.rollNumber ? user.rollNumber.charAt(0) : "U"}
+          </div>
+          <div>
+            <h2>Welcome Back!</h2>
+            <p className="role-badge">{user.role || "Student"}</p>
+          </div>
+        </div>
 
-        {/* If user is a TEACHER */}
-        {user.role === "TEACHER" && (
-            <div style={styles.card}>
-                <h3>👨‍🏫 Teacher Portal</h3>
-                <p>Upload marks and manage student attendance.</p>
-                <button style={styles.actionBtn}>Upload Marks</button>
-            </div>
-        )}
+        <hr className="divider" />
 
-         {/* If user is PRINCIPAL */}
-         {user.role === "PRINCIPAL" && (
-            <div style={styles.card}>
-                <h3>🏛️ Principal Dashboard</h3>
-                <p>View college statistics and faculty reports.</p>
-                <button style={styles.actionBtn}>View Reports</button>
-            </div>
-        )}
-        
+        <div className="info-section">
+          <div className="info-row">
+            <span>Roll Number:</span>
+            <strong>{user.rollNumber || "Not Available"}</strong>
+          </div>
+          
+          <div className="info-row">
+            <span>Email:</span>
+            <strong>{user.email || "Not Available"}</strong>
+          </div>
+
+          <div className="info-row">
+            <span>Last Login:</span>
+            <strong className="time-text">{lastLogin || "Just now"}</strong>
+          </div>
+        </div>
+
+        <button onClick={handleLogout} className="btn-logout">
+          Logout
+        </button>
       </div>
     </div>
   );
-};
-
-const styles = {
-  container: { padding: "20px", fontFamily: "Arial, sans-serif" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #333", paddingBottom: "10px" },
-  roleTag: { backgroundColor: "#eee", padding: "5px 10px", borderRadius: "5px", fontWeight: "bold" },
-  logoutBtn: { backgroundColor: "red", color: "white", border: "none", padding: "8px 15px", cursor: "pointer" },
-  content: { marginTop: "20px" },
-  card: { border: "1px solid #ddd", padding: "20px", borderRadius: "8px", maxWidth: "400px", boxShadow: "0 2px 5px rgba(0,0,0,0.1)" },
-  actionBtn: { marginTop: "10px", padding: "10px 15px", backgroundColor: "#007BFF", color: "white", border: "none", cursor: "pointer" }
 };
 
 export default Dashboard;

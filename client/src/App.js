@@ -1,16 +1,19 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Login from "./Login";
-import Dashboard from "./Dashboard"; // Import the new file
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
+import Login from './Login';
+import Dashboard from './Dashboard'; // <--- 1. Import Dashboard
 
 function App() {
   return (
-    <Router>
+    <div className="App">
       <Routes>
+        {/* Route for Login Page (Home) */}
         <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} /> {/* Add this line */}
+        
+        {/* Route for Dashboard - THIS WAS MISSING */}
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
-    </Router>
+    </div>
   );
 }
 

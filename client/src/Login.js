@@ -1,64 +1,140 @@
-import React, { useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom'; // Fixed: Added 'Link' here
+import './Login.css'; 
 
 const Login = () => {
-  const [userId, setUserId] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    rollNumber: '',
+    password: ''
+  });
+
+  const navigate = useNavigate(); 
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prevState => ({
+      ...prevState,
+      [name]: value
+    }));
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   const handleLogin = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); 
+
+    const { rollNumber, password } = formData;
+
+    if (!rollNumber || !password) {
+      alert("Please fill in all fields.");
+      return;
+    }
+
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", {
-        userId,
-        password,
-      });
+        const response = await fetch('http://localhost:5000/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ rollNumber, password }),
+        });
 
-      // 1. Save user info to Local Storage (Browser memory)
-      // This allows other pages to know who is logged in
-      localStorage.setItem("user", JSON.stringify(res.data.user));
+        const data = await response.json();
 
-      // 2. Redirect to Dashboard
-      navigate("/dashboard"); 
+        // Fixed: Removed console.log("SERVER RESPONSE"...) to keep console clean
 
-    } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong");
+        if (response.ok) {
+            alert("Login Successful!");
+            
+            // Save User Data
+            localStorage.setItem('userInfo', JSON.stringify(data));
+
+            // Save Current Time
+            localStorage.setItem('loginTime', new Date().toLocaleString());
+
+            if (data.role === 'Admin') {
+                navigate('/admin-dashboard');
+            } else {
+                navigate('/dashboard'); 
+            }
+        } else {
+            alert(data.message || "Invalid Roll Number or Password");
+        }
+
+    } catch (error) {
+        console.error("Login Error:", error);
+        alert("Something went wrong. Is your backend server running?");
     }
   };
 
   return (
-    <div style={styles.container}>
-      <h2>College Portal Login</h2>
-      <form onSubmit={handleLogin} style={styles.form}>
-        <input
-          type="text"
-          placeholder="User ID (e.g., 21CSE045)"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          style={styles.input}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={styles.input}
-        />
-        <button type="submit" style={styles.button}>Login</button>
-        {error && <p style={styles.error}>{error}</p>}
-      </form>
+    <div className="login-wrapper">
+      <div className="login-card">
+        <h2>Welcome Back</h2>
+        <p>Sign in to your account</p>
+
+        <form onSubmit={handleLogin}>
+          <div className="input-group">
+            <input 
+              type="text" 
+              name="rollNumber"
+              placeholder="Roll Number" 
+              value={formData.rollNumber}
+              onChange={handleChange}
+              required 
+            />
+          </div>
+
+          <div className="input-group">
+            <input 
+              type={showPassword ? "text" : "password"} 
+              name="password"
+              placeholder="Password" 
+              value={formData.password}
+              onChange={handleChange}
+              required 
+            />
+            <i 
+              className={`fa-regular ${showPassword ? "fa-eye-slash" : "fa-eye"}`}
+              onClick={togglePasswordVisibility}
+            ></i>
+          </div>
+
+          <div className="options">
+            <label className="remember-me">
+              <input type="checkbox" /> Remember me
+            </label>
+            {/* Fixed: Replaced <a> with <Link> */}
+            <Link to="/forgot-password" style={{ textDecoration: 'none', color: 'inherit' }}>
+              Forgot password?
+            </Link>
+          </div>
+
+          <button type="submit" className="btn-signin">Sign In</button>
+        </form>
+
+        <div className="divider">or continue with</div>
+
+        <button className="btn-google">
+          <img 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/512px-Google_%22G%22_Logo.svg.png" 
+            width="20" 
+            alt="Google" 
+          />
+          Google
+        </button>
+
+        <p className="footer-text">
+          Don't have an account? 
+          {/* Fixed: Replaced <a> with <Link> */}
+          <Link to="/signup" style={{ marginLeft: '5px' }}>Sign up</Link>
+        </p>
+      </div>
     </div>
   );
-};
-
-const styles = {
-  container: { textAlign: "center", marginTop: "100px" },
-  form: { display: "flex", flexDirection: "column", width: "300px", margin: "auto" },
-  input: { padding: "10px", marginBottom: "10px", fontSize: "16px" },
-  button: { padding: "10px", backgroundColor: "#007BFF", color: "white", border: "none", cursor: "pointer", fontSize: "16px" },
-  error: { color: "red", marginTop: "10px" }
 };
 
 export default Login;

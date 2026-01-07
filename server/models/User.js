@@ -1,24 +1,58 @@
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
-  userId: {
+  // PRIMARY KEY (Used for Login)
+  rollNumber: {
     type: String,
     required: true,
-    unique: true, // No two people can have the same ID
+    unique: true,
   },
-  username: {
+  
+  // SECURITY FIELDS
+  passwordHash: {
     type: String,
     required: true,
   },
-  password: {
+  email: {
     type: String,
     required: true,
+    unique: true,
   },
+  phone: {
+    type: String,
+    default: ""
+  },
+  
+  // ACCOUNT STATUS FIELDS
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+  lastLogin: {
+    type: Date,
+    default: null,
+  },
+  loginAttempts: {
+    type: Number,
+    default: 0,
+  },
+  
+  // PASSWORD RECOVERY
+  resetPasswordToken: {
+    type: String,
+    default: null,
+  },
+  resetPasswordExpiry: {
+    type: Date,
+    default: null,
+  },
+
+  // ROLES
   role: {
     type: String,
     required: true,
-    enum: ["STUDENT", "OFFICE", "TEACHER", "MENTOR", "HOD", "PRINCIPAL"], // Restrict to these roles
-    default: "STUDENT"
+    enum: ["Student", "Admin", "Instructor", "Principal"], 
+    default: "Student"
   },
 }, { timestamps: true });
 

@@ -7,19 +7,55 @@ dotenv.config();
 connectDB();
 
 const users = [
-  { userId: "21CSE045", username: "vikas", password: "123", role: "STUDENT" },
-  { userId: "office01", username: "admin", password: "123", role: "OFFICE" },
-  { userId: "teach01", username: "teacher", password: "123", role: "TEACHER" },
-  { userId: "ment01", username: "mentor", password: "123", role: "MENTOR" },
-  { userId: "hod01", username: "hod", password: "123", role: "HOD" },
-  { userId: "prin01", username: "principal", password: "123", role: "PRINCIPAL" }
+  // --- STUDENTS ---
+  { 
+    rollNumber: "202300001", 
+    email: "vikas@college.com", 
+    passwordHash: "123", // In real app, this should be encrypted
+    role: "Student",
+    isActive: true
+  },
+  { 
+    rollNumber: "21CSE002", 
+    email: "sneha@college.com", 
+    passwordHash: "123", 
+    role: "Student",
+    isActive: true
+  },
+
+  // --- ADMIN ---
+  { 
+    rollNumber: "ADMIN01", 
+    email: "admin@college.com", 
+    passwordHash: "123", 
+    role: "Admin",
+    isActive: true
+  },
+
+  // --- INSTRUCTORS ---
+  { 
+    rollNumber: "INS01", 
+    email: "ravi@college.com", 
+    passwordHash: "123", 
+    role: "Instructor",
+    isActive: true
+  },
+
+  // --- PRINCIPAL ---
+  { 
+    rollNumber: "PRIN01", 
+    email: "principal@college.com", 
+    passwordHash: "123", 
+    role: "Principal",
+    isActive: true
+  }
 ];
 
 const importData = async () => {
   try {
-    await User.deleteMany(); // Clears old data
+    await User.deleteMany(); // Clear old data
     await User.insertMany(users);
-    console.log("Data Imported!");
+    console.log("Authentication DB Seeded Successfully!");
     process.exit();
   } catch (error) {
     console.error(`Error: ${error}`);

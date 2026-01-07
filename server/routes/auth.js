@@ -3,29 +3,44 @@ const router = express.Router();
 const User = require("../models/User");
 
 // LOGIN ROUTE
-// POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
-    const { userId, password } = req.body;
+    // 1. Accept rollNumber instead of userId
+    const { rollNumber, password } = req.body;
 
-    // 1. Check if user exists
-    const user = await User.findOne({ userId });
+    // 2. Find user by rollNumber
+    const user = await User.findOne({ rollNumber });
     if (!user) {
-      return res.status(404).json({ message: "User ID not found" });
+      return res.status(404).json({ message: "Roll Number not found" });
     }
 
-    // 2. Check password (In a real app, we would hash this, but for now we compare plain text as per your sheet)
-    if (user.password !== password) {
+    // 3. Check if account is active
+    if (!user.isActive) {
+      return res.status(403).json({ message: "Account is inactive. Contact Admin." });
+    }
+
+    // 4. Validate Password (comparing against passwordHash)
+    if (user.passwordHash !== password) {
+      
+      // Optional: Increment login attempts here
+      user.loginAttempts += 1;
+      await user.save();
+
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // 3. Login successful - send back the user info (excluding password)
+    // 5. Success! Reset attempts and update login time
+    user.lastLogin = new Date();
+    user.loginAttempts = 0;
+    await user.save();
+
     res.status(200).json({
       message: "Login successful",
       user: {
-        userId: user.userId,
-        username: user.username,
-        role: user.role
+        rollNumber: user.rollNumber,
+        email: user.email,
+        role: user.role,
+        lastLogin: user.lastLogin
       }
     });
 

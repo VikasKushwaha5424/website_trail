@@ -1,0 +1,179 @@
+/* Import fonts here or in your main index.css */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
+/* Make sure you have FontAwesome installed or linked in your public/index.html */
+
+* {
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* This wrapper acts as the body background */
+.login-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100%;
+  padding: 20px; /* Prevents card from touching edges on small phones */
+  background: linear-gradient(135deg, #4A58CF 0%, #8E54E9 100%);
+}
+
+.login-card {
+  width: 100%;           /* Flexible width */
+  max-width: 400px;      /* Stops getting too big on desktop */
+  padding: 40px 30px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  color: #fff;
+}
+
+.login-card h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.login-card p {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 30px;
+}
+
+.input-group {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 12px 15px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  outline: none;
+  color: #fff;
+  font-size: 14px;
+  transition: 0.3s;
+}
+
+.input-group input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.input-group input:focus {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.input-group i {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+.options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-bottom: 25px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.options a {
+  color: #00f2fe;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.options a:hover {
+  text-decoration: underline;
+}
+
+.btn-signin {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+  box-shadow: 0 5px 15px rgba(0, 242, 254, 0.3);
+}
+
+.btn-signin:hover {
+  transform: scale(1.02);
+}
+
+.divider {
+  margin: 20px 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.btn-google {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.3s;
+}
+
+.btn-google:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.footer-text {
+  margin-top: 20px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.footer-text a {
+  color: #00f2fe;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* Hide default browser password toggle to prevent overlapping icons */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
