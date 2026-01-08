@@ -1,16 +1,19 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Login from './Login';
-import Dashboard from './Dashboard';
-// Any other imports you had originally
+import { AuthProvider } from './context/AuthContext'; // <--- This line is now fixed
+
+// Import your pages (Make sure paths match your actual folders)
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Login />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      {/* Any other routes you had originally */}
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Routes>
+    </AuthProvider>
   );
 }
 
