@@ -1,19 +1,16 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Login from './Login';
-import Dashboard from './Dashboard'; // <--- 1. Import Dashboard
+import Dashboard from './Dashboard';
+// Any other imports you had originally
 
 function App() {
   return (
-    <div className="App">
-      <Routes>
-        {/* Route for Login Page (Home) */}
-        <Route path="/" element={<Login />} />
-        
-        {/* Route for Dashboard - THIS WAS MISSING */}
-        <Route path="/dashboard" element={<Dashboard />} />
-      </Routes>
-    </div>
+    <Routes>
+      <Route path="/" element={<Login />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+      {/* Any other routes you had originally */}
+    </Routes>
   );
 }
 

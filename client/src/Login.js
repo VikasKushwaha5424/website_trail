@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; // Fixed: Added 'Link' here
+import { useNavigate, Link } from 'react-router-dom'; 
 import './Login.css'; 
 
 const Login = () => {
@@ -34,6 +34,7 @@ const Login = () => {
     }
 
     try {
+        // ORIGINAL: Hardcoded URL
         const response = await fetch('http://localhost:5000/api/auth/login', {
             method: 'POST',
             headers: {
@@ -44,15 +45,11 @@ const Login = () => {
 
         const data = await response.json();
 
-        // Fixed: Removed console.log("SERVER RESPONSE"...) to keep console clean
-
         if (response.ok) {
             alert("Login Successful!");
             
-            // Save User Data
+            // ORIGINAL: Saving data directly
             localStorage.setItem('userInfo', JSON.stringify(data));
-
-            // Save Current Time
             localStorage.setItem('loginTime', new Date().toLocaleString());
 
             if (data.role === 'Admin') {
@@ -107,7 +104,6 @@ const Login = () => {
             <label className="remember-me">
               <input type="checkbox" /> Remember me
             </label>
-            {/* Fixed: Replaced <a> with <Link> */}
             <Link to="/forgot-password" style={{ textDecoration: 'none', color: 'inherit' }}>
               Forgot password?
             </Link>
@@ -129,7 +125,6 @@ const Login = () => {
 
         <p className="footer-text">
           Don't have an account? 
-          {/* Fixed: Replaced <a> with <Link> */}
           <Link to="/signup" style={{ marginLeft: '5px' }}>Sign up</Link>
         </p>
       </div>

@@ -16,9 +16,7 @@ const Dashboard = () => {
     } else {
       const parsedData = JSON.parse(storedData);
       
-      // --- THE FIX IS HERE ---
-      // We check: Is the user info inside a 'user' folder? 
-      // If yes, use parsedData.user. If no, use parsedData directly.
+      // ORIGINAL: The "Band-aid" fix logic
       const realUser = parsedData.user ? parsedData.user : parsedData;
       
       setUser(realUser);
@@ -40,7 +38,6 @@ const Dashboard = () => {
         
         <div className="profile-header">
           <div className="avatar">
-            {/* Now this will correctly find the roll number */}
             {user.rollNumber ? user.rollNumber.charAt(0) : "U"}
           </div>
           <div>
