@@ -1,32 +1,28 @@
 const User = require("../models/User");
 
+// 1. MANUAL LOGIN (Uses Roll Number)
 exports.loginUser = async (req, res) => {
   try {
-    // 1. Accept rollNumber instead of userId
+    // REVERTED: Accept rollNumber
     const { rollNumber, password } = req.body;
 
-    // 2. Find user by rollNumber
+    // REVERTED: Find by rollNumber
     const user = await User.findOne({ rollNumber });
+    
     if (!user) {
       return res.status(404).json({ message: "Roll Number not found" });
     }
 
-    // 3. Check if account is active
     if (!user.isActive) {
       return res.status(403).json({ message: "Account is inactive. Contact Admin." });
     }
 
-    // 4. Validate Password (comparing against passwordHash)
     if (user.passwordHash !== password) {
-      
-      // Optional: Increment login attempts here
       user.loginAttempts += 1;
       await user.save();
-
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // 5. Success! Reset attempts and update login time
     user.lastLogin = new Date();
     user.loginAttempts = 0;
     await user.save();
@@ -37,6 +33,40 @@ exports.loginUser = async (req, res) => {
         rollNumber: user.rollNumber,
         email: user.email,
         role: user.role,
+        lastLogin: user.lastLogin
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json(err);
+  }
+};
+
+// 2. GOOGLE LOGIN (Uses Email)
+exports.googleLogin = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Find user by EMAIL (Google only gives us email)
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "This Google Email is not linked to any account." });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ message: "Account is inactive." });
+    }
+
+    user.lastLogin = new Date();
+    await user.save();
+
+    res.status(200).json({
+      message: "Google Login successful",
+      user: {
+        rollNumber: user.rollNumber,
+        email: user.email,
+        role: user.role, 
         lastLogin: user.lastLogin
       }
     });

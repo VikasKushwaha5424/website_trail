@@ -10,14 +10,14 @@ const users = [
   // --- STUDENTS ---
   { 
     rollNumber: "202300001", 
-    email: "vikas@college.com", 
+    email: "vikaskushwaha5424@gmail.com", 
     passwordHash: "123", // In real app, this should be encrypted
     role: "Student",
     isActive: true
   },
   { 
     rollNumber: "21CSE002", 
-    email: "sneha@college.com", 
+    email: "vikaskushwaha54240000@gmail.com", 
     passwordHash: "123", 
     role: "Student",
     isActive: true
