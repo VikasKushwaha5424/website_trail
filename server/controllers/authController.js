@@ -1,77 +1,76 @@
 const User = require("../models/User");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 
-// 1. MANUAL LOGIN (Uses Roll Number)
+// HELPER: This generates the "ID Card" (Token) for BOTH login types
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: "30d",
+  });
+};
+
+// ==========================================
+// OPTION 1: MANUAL LOGIN (Roll No + Password)
+// ==========================================
 exports.loginUser = async (req, res) => {
   try {
-    // REVERTED: Accept rollNumber
     const { rollNumber, password } = req.body;
 
-    // REVERTED: Find by rollNumber
+    // 1. Find user by Roll Number
     const user = await User.findOne({ rollNumber });
-    
-    if (!user) {
-      return res.status(404).json({ message: "Roll Number not found" });
-    }
 
-    if (!user.isActive) {
-      return res.status(403).json({ message: "Account is inactive. Contact Admin." });
-    }
+    if (!user) return res.status(404).json({ message: "Roll Number not found" });
+    if (!user.isActive) return res.status(403).json({ message: "Account Inactive" });
 
+    // 2. Check Password
     if (user.passwordHash !== password) {
-      user.loginAttempts += 1;
-      await user.save();
-      return res.status(400).json({ message: "Invalid credentials" });
+       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    user.lastLogin = new Date();
-    user.loginAttempts = 0;
-    await user.save();
-
+    // 3. Success: Send back the Token + User Info
     res.status(200).json({
       message: "Login successful",
+      token: generateToken(user._id), // <--- Giving them the token
       user: {
+        _id: user._id,
         rollNumber: user.rollNumber,
         email: user.email,
         role: user.role,
-        lastLogin: user.lastLogin
       }
     });
 
   } catch (err) {
-    res.status(500).json(err);
+    res.status(500).json({ message: err.message });
   }
 };
 
-// 2. GOOGLE LOGIN (Uses Email)
+// ==========================================
+// OPTION 2: GOOGLE LOGIN (Email Only)
+// ==========================================
 exports.googleLogin = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email } = req.body; // Frontend sends us the Google Email
 
-    // Find user by EMAIL (Google only gives us email)
+    // 1. Find user by Email
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(404).json({ message: "This Google Email is not linked to any account." });
-    }
+    if (!user) return res.status(404).json({ message: "Google email not found in database." });
+    if (!user.isActive) return res.status(403).json({ message: "Account Inactive" });
 
-    if (!user.isActive) {
-      return res.status(403).json({ message: "Account is inactive." });
-    }
-
-    user.lastLogin = new Date();
-    await user.save();
-
+    // 2. Success: Send back the Token + User Info
+    // (We also give a token here so Google users can access protected pages!)
     res.status(200).json({
       message: "Google Login successful",
+      token: generateToken(user._id), // <--- Giving them the token too!
       user: {
+        _id: user._id,
         rollNumber: user.rollNumber,
         email: user.email,
-        role: user.role, 
-        lastLogin: user.lastLogin
+        role: user.role,
       }
     });
 
   } catch (err) {
-    res.status(500).json(err);
+    res.status(500).json({ message: err.message });
   }
 };

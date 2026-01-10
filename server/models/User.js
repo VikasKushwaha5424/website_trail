@@ -47,11 +47,11 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
 
-  // ROLES
+  // ROLES - UPDATE THIS PART 👇
   role: {
     type: String,
     required: true,
-    enum: ["Student", "Admin", "Instructor", "Principal"], 
+    enum: ["Student", "Admin", "Faculty", "Principal"], // <--- MUST SAY "Faculty"
     default: "Student"
   },
 }, { timestamps: true });
