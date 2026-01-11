@@ -18,7 +18,7 @@ exports.getStudentProfile = async (req, res) => {
     // req.user.id comes from the Auth Middleware
     const profile = await StudentProfile.findOne({ userId: req.user.id })
       .populate("departmentId", "name code") // Needs Department model
-      // 👇 FIXED: User model uses 'name', NOT 'username'
+      // ✅ FIXED: User model uses 'name', NOT 'username'
       .populate("userId", "email name rollNumber"); 
 
     if (!profile) {

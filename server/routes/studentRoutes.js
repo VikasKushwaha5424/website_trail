@@ -13,19 +13,29 @@ const {
 } = require("../controllers/studentController");
 
 // ==========================================
-// 🔒 GLOBAL SECURITY
+// 🔒 GLOBAL SECURITY FOR THESE ROUTES
 // ==========================================
+// 1. User must have a valid Token
 router.use(protect); 
 
-// FIXED: Allow both "student" and "STUDENT"
+// 2. User must be a STUDENT (Faculty/Admins cannot peek at student data here)
+// ✅ FIXED: Allow both cases to prevent lockout
 router.use(authorize("student", "STUDENT")); 
 
 // ==========================================
 // 🚦 ROUTES
 // ==========================================
+
+// GET /api/student/profile
 router.get("/profile", getStudentProfile);
+
+// GET /api/student/courses (Timetable)
 router.get("/courses", getStudentCourses);
+
+// GET /api/student/attendance (Stats)
 router.get("/attendance", getAttendanceStats);
+
+// GET /api/student/marks (Results)
 router.get("/marks", getStudentMarks);
 
 module.exports = router;
