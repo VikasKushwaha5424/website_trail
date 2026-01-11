@@ -1,60 +1,67 @@
-const FacultyProfile = require("../models/FacultyProfile");
 const FacultyCourse = require("../models/FacultyCourse");
-const Attendance = require("../models/Attendance");
 const Student = require("../models/Student");
+const Attendance = require("../models/Attendance");
+const Course = require("../models/Course");
+const User = require("../models/User");
 
-// 1. GET MY PROFILE
-exports.getProfile = async (req, res) => {
+// 1. Get Courses Assigned to Logged-in Faculty
+exports.getAssignedCourses = async (req, res) => {
   try {
-    // req.user.id comes from the 'protect' middleware
-    const profile = await FacultyProfile.findOne({ userId: req.user._id }).populate("userId", "name email role");
+    const facultyId = req.user.id; // Got from the Token
+
+    // Find links where this faculty is the teacher
+    const assignments = await FacultyCourse.find({ facultyId }).populate("courseId");
     
-    if (!profile) {
-      return res.status(404).json({ message: "Faculty profile not found." });
-    }
-    res.json(profile);
-  } catch (err) {
-    res.status(500).json({ message: "Server Error", error: err.message });
-  }
-};
-
-// 2. GET MY COURSES (Classes I teach)
-exports.getCourses = async (req, res) => {
-  try {
-    // First, find the faculty profile ID using the User ID
-    const profile = await FacultyProfile.findOne({ userId: req.user._id });
-    if (!profile) return res.status(404).json({ message: "Profile not found" });
-
-    // Find all courses linked to this Faculty ID
-    const courses = await FacultyCourse.find({ facultyId: profile._id })
-      .populate("courseId", "subjectName subjectCode semester");
-
+    // Extract just the course details to send to frontend
+    // Filter out any nulls in case a course was deleted
+    const courses = assignments
+      .filter(a => a.courseId) 
+      .map(a => a.courseId);
+    
     res.json(courses);
   } catch (err) {
-    res.status(500).json({ message: "Server Error", error: err.message });
+    console.error(err);
+    res.status(500).json({ message: "Server error fetching assigned courses" });
   }
 };
 
-// 3. MARK ATTENDANCE
+// 2. Get Students for a specific Course
+exports.getStudentsForCourse = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    
+    const course = await Course.findById(courseId);
+    if (!course) return res.status(404).json({ message: "Course not found" });
+
+    // Fetch students in that Dept
+    // Populating 'userId' gives us the Name and Roll Number
+    const students = await Student.find({ departmentId: course.departmentId })
+      .populate("userId", "name rollNumber");
+
+    res.json(students);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error fetching students" });
+  }
+};
+
+// 3. Mark Attendance
 exports.markAttendance = async (req, res) => {
   try {
-    const { courseId, date, students } = req.body; // students = [{ studentId, status }]
-    const facultyUser = await FacultyProfile.findOne({ userId: req.user._id });
+    const { courseId, date, students } = req.body; 
+    // students array looks like: [{ studentId: "...", status: "Present" }]
 
-    // Loop through the list of students sent from frontend
-    // Note: In production, use bulkWrite for better performance
     for (const record of students) {
-      await Attendance.create({
-        studentId: record.studentId,
-        courseId: courseId,
-        date: new Date(date),
-        status: record.status, // "Present" or "Absent"
-        markedBy: facultyUser._id
-      });
+      await Attendance.findOneAndUpdate(
+        { studentId: record.studentId, courseId, date }, // Search criteria
+        { status: record.status }, // Update
+        { upsert: true, new: true } // Create if it doesn't exist
+      );
     }
 
-    res.status(200).json({ message: "Attendance marked successfully" });
+    res.json({ message: "Attendance Marked Successfully!" });
   } catch (err) {
-    res.status(500).json({ message: "Error marking attendance", error: err.message });
+    console.error(err);
+    res.status(500).json({ message: "Error saving attendance" });
   }
 };

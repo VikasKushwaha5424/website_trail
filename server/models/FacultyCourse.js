@@ -1,10 +1,9 @@
 const mongoose = require("mongoose");
 
-// Which Faculty teaches which Course?
 const facultyCourseSchema = new mongoose.Schema({
   facultyId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "FacultyProfile",
+    ref: "User", // ✅ Correct: Matches 'facultyUser._id' in your seed script
     required: true,
   },
   courseId: {
@@ -12,7 +11,11 @@ const facultyCourseSchema = new mongoose.Schema({
     ref: "Course",
     required: true,
   },
-  section: { type: String, default: "A" } // If you have multiple sections
-});
+  // (Optional) You can keep 'section' if you want to track Section A/B later
+  section: { 
+    type: String, 
+    default: "A" 
+  }
+}, { timestamps: true });
 
 module.exports = mongoose.model("FacultyCourse", facultyCourseSchema);

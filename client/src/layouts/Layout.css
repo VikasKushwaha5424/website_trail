@@ -1,0 +1,102 @@
+/* --- APP STRUCTURE --- */
+.app-container {
+  display: flex;
+  height: 100vh;
+  background-color: #F2F7F3; /* Green 50 (Mint Mist) */
+  font-family: 'Inter', sans-serif;
+}
+
+/* --- SIDEBAR --- */
+.sidebar {
+  width: 260px;
+  background-color: #2D4F39; /* Green 700 (Deep Green) */
+  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.sidebar-header h2 {
+  font-size: 1.2rem;
+  margin-bottom: 5px;
+}
+
+.user-badge {
+  background-color: #4C7D5C; /* Green 500 */
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  margin-bottom: 30px;
+}
+
+/* --- NAVIGATION LINKS --- */
+.sidebar-nav {
+  flex: 1; /* Pushes footer down */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  color: #C2D8C6; /* Green 200 (Light Text) */
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.nav-item:hover {
+  background-color: #406F50; /* Green 600 */
+  color: white;
+}
+
+.nav-item.active {
+  background-color: #F2F7F3; /* Mint Mist (Match Body BG) */
+  color: #2D4F39; /* Deep Green Text */
+  font-weight: bold;
+  box-shadow: -4px 0 0 #FF6F61; /* Coral Accent Stripe */
+}
+
+.nav-item .icon {
+  margin-right: 12px;
+}
+
+/* --- LOGOUT BUTTON --- */
+.logout-btn {
+  background: transparent;
+  border: 1px solid #FF6F61; /* Coral Border */
+  color: #FF6F61;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  transition: 0.2s;
+}
+
+.logout-btn:hover {
+  background-color: #FF6F61;
+  color: white;
+}
+
+/* --- MAIN CONTENT AREA --- */
+.main-content {
+  flex: 1;
+  overflow-y: auto; /* Scrollable if content is long */
+  padding: 0;
+}
+
+.top-bar {
+  background-color: white;
+  padding: 15px 30px;
+  border-bottom: 1px solid #E0EBE1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-wrapper {
+  padding: 30px; /* Space inside the content area */
+}

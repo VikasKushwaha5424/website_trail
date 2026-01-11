@@ -10,23 +10,27 @@ const protect = async (req, res, next) => {
     req.headers.authorization.startsWith("Bearer")
   ) {
     try {
-      // Get token from header (Format: "Bearer <token>")
+      // Get token from header
       token = req.headers.authorization.split(" ")[1];
 
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       // Get user from the token ID (exclude password)
-      req.user = await User.findById(decoded.id).select("-passwordHash");
+      // Check for both 'id' and '_id' to be safe
+      req.user = await User.findById(decoded.id || decoded._id).select("-passwordHash");
 
-      next(); // Move to the next function
+      if (!req.user) {
+        return res.status(401).json({ message: "User not found" });
+      }
+
+      next();
     } catch (error) {
       console.error(error);
       res.status(401).json({ message: "Not authorized, token failed" });
     }
-  }
-
-  if (!token) {
+  } else {
+    // If no token at all
     res.status(401).json({ message: "Not authorized, no token" });
   }
 };
@@ -40,4 +44,14 @@ const adminOnly = (req, res, next) => {
   }
 };
 
-module.exports = { protect, adminOnly };
+// 3. FACULTY ONLY: Checks if User is Faculty
+const facultyOnly = (req, res, next) => {
+  if (req.user && req.user.role === 'Faculty') {
+    next();
+  } else {
+    res.status(403).json({ message: 'Access denied. Faculty only.' });
+  }
+};
+
+// Export ALL functions
+module.exports = { protect, adminOnly, facultyOnly };

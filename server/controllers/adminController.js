@@ -8,11 +8,16 @@ const FacultyCourse = require("../models/FacultyCourse");
 // 1. ADD USER (Generic: Handles Student, Faculty, or Admin)
 exports.addUser = async (req, res) => {
   try {
-    const { name, email, password, role, departmentId, specificData } = req.body;
+    // FIX: Extracted 'rollNumber' from request body
+    const { name, email, password, role, departmentId, rollNumber, specificData } = req.body;
     
-    // 1. Create the Login User
+    // 1. Create the Login User (Added rollNumber here)
     const newUser = await User.create({
-      name, email, passwordHash: password, role
+      name, 
+      email, 
+      passwordHash: password, 
+      role,
+      rollNumber // <--- CRITICAL FIX: Required by User Model
     });
 
     // 2. If 'Student', create Student Profile
@@ -20,7 +25,7 @@ exports.addUser = async (req, res) => {
       await Student.create({
         userId: newUser._id,
         departmentId,
-        rollNo: specificData.rollNo,
+        rollNo: specificData.rollNo || rollNumber, // Fallback to main rollNumber if specific is missing
         batch: specificData.batch
       });
     }
@@ -34,8 +39,9 @@ exports.addUser = async (req, res) => {
       });
     }
 
-    res.status(201).json({ message: "User created successfully" });
+    res.status(201).json({ message: "User created successfully", user: newUser });
   } catch (err) {
+    console.error("Add User Error:", err);
     res.status(500).json({ error: err.message });
   }
 };

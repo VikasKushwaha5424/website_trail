@@ -1,11 +1,30 @@
 const express = require("express");
 const router = express.Router();
-const { protect } = require("../middleware/authMiddleware"); // The security guard
-const { getProfile, getCourses, markAttendance } = require("../controllers/facultyController");
 
-// All these routes require a valid Token (Login)
-router.get("/profile", protect, getProfile);
-router.get("/courses", protect, getCourses);
-router.post("/attendance", protect, markAttendance);
+// 1. Import Middleware
+// We need 'facultyOnly' to make sure students can't mark their own attendance!
+const { protect, facultyOnly } = require("../middleware/authMiddleware"); 
+
+// 2. Import Controller
+const facultyController = require("../controllers/facultyController");
+
+// 3. Apply Middleware Globally
+// (Everything below this line requires Login + Faculty Role)
+router.use(protect);
+router.use(facultyOnly); 
+
+// 4. Define Routes
+
+// GET /api/faculty/courses 
+// Returns the list of subjects taught by this teacher
+router.get("/courses", facultyController.getAssignedCourses);
+
+// GET /api/faculty/course/:courseId/students
+// Returns the student list for a specific dropdown selection
+router.get("/course/:courseId/students", facultyController.getStudentsForCourse);
+
+// POST /api/faculty/mark-attendance
+// Saves the attendance data
+router.post("/mark-attendance", facultyController.markAttendance);
 
 module.exports = router;

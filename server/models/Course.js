@@ -10,6 +10,12 @@ const courseSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // 🔗 LINK TO DEPARTMENT (Needed for logic)
+  departmentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Department",
+    required: true,
+  },
   semester: {
     type: Number,
     required: true,
@@ -19,7 +25,7 @@ const courseSchema = new mongoose.Schema({
     required: true,
   },
   academicYear: {
-    type: String, // e.g., "2025-2026"
+    type: String, 
     required: true,
   }
 });

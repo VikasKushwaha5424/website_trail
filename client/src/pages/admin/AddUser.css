@@ -1,0 +1,101 @@
+.form-container {
+  display: flex;
+  justify-content: center;
+  padding-top: 20px;
+}
+
+.form-card {
+  background: white;
+  padding: 40px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.form-card h2 {
+  color: #2D4F39; /* Deep Green */
+  margin-bottom: 5px;
+}
+
+/* Role Toggle Buttons */
+.role-toggle {
+  display: flex;
+  background: #F2F7F3;
+  padding: 5px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.role-toggle button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #6B7280;
+  font-weight: 500;
+  transition: 0.3s;
+}
+
+.role-toggle button.active {
+  background: white;
+  color: #2D4F39;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  font-weight: bold;
+}
+
+/* Inputs */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.9rem;
+  color: #4B5563;
+  margin-bottom: 5px;
+}
+
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #4C7D5C;
+  box-shadow: 0 0 0 3px rgba(76, 125, 92, 0.1);
+}
+
+/* Submit Button */
+.submit-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #FF6F61; /* Coral */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: 0.2s;
+}
+
+.submit-btn:hover {
+  background-color: #E85A4F;
+}
+
+.submit-btn:disabled {
+  background-color: #FECACA;
+  cursor: not-allowed;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}

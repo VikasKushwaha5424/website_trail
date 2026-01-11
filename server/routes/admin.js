@@ -1,12 +1,19 @@
 const express = require("express");
 const router = express.Router();
+// Import BOTH middlewares
 const { protect, adminOnly } = require("../middleware/authMiddleware");
-const { addUser, addDepartment, addCourse, assignFaculty } = require("../controllers/adminController");
+const adminController = require("../controllers/adminController");
 
-// ALL Routes below need Token (protect) AND Admin Role (adminOnly)
-router.post("/add-user", protect, adminOnly, addUser);
-router.post("/add-dept", protect, adminOnly, addDepartment);
-router.post("/add-course", protect, adminOnly, addCourse);
-router.post("/assign-faculty", protect, adminOnly, assignFaculty);
+// 1. Protect all routes (Must be logged in)
+router.use(protect);
+
+// 2. Restrict to Admins Only (Must be an Admin)
+router.use(adminOnly);
+
+// Routes
+router.post("/add-user", adminController.addUser);
+router.post("/add-dept", adminController.addDepartment);
+router.post("/add-course", adminController.addCourse);
+router.post("/assign-faculty", adminController.assignFaculty);
 
 module.exports = router;
