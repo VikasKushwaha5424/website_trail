@@ -7,15 +7,23 @@ const adminUser = {
   password: "password123" 
 };
 
-// 2. Data for a NEW Student we want to add
+
+// Change this part in testAdmin.js
 const newStudent = {
-  name: "Rahul Sharma",  // The Admin Controller should split this into "Rahul" and "Sharma"
-  email: "rahul@college.com",
+  name: "Rahul Sharma",
+  email: "rahul2@college.com",       // <--- Changed to rahul2
   password: "studentpass",
   role: "student",
-  rollNumber: "CSE-2025-01",
+  rollNumber: "CSE-2025-02",         // <--- Changed to 02
   batch: 2025,
-  departmentId: "CSE" // Assumes you have logic to handle this or it might fail if Dept doesn't exist yet
+  departmentId: "CSE"
+};
+
+
+// 3. Data for the Department we need
+const newDept = {
+  name: "Computer Science & Engineering",
+  code: "CSE"
 };
 
 async function testAdminFlow() {
@@ -36,7 +44,29 @@ async function testAdminFlow() {
     token = loginData.token;
     console.log("✅ Admin Login Success! Token acquired.");
 
-    // B. Try to Add a Student
+    // =================================================================
+    // B. (THE FIX) Ensure Department Exists Before Adding Student
+    // =================================================================
+    console.log("\n--- 1.5 Ensuring 'CSE' Department Exists ---");
+    const deptRes = await fetch(`${BASE_URL}/admin/add-department`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}` 
+      },
+      body: JSON.stringify(newDept),
+    });
+
+    if (deptRes.ok) {
+        console.log("✅ Department 'CSE' created.");
+    } else {
+        // It might fail if it already exists, which is fine!
+        console.log("ℹ️  Department check (might already exist):", await deptRes.statusText);
+    }
+
+    // =================================================================
+    // C. Try to Add a Student
+    // =================================================================
     console.log("\n--- 2. Creating a Student (Testing Name Split Logic) ---");
     const addRes = await fetch(`${BASE_URL}/admin/add-user`, {
       method: "POST",
@@ -54,11 +84,6 @@ async function testAdminFlow() {
       console.log("   User Details:", addData.user);
     } else {
       console.log("❌ Creation Failed:", addData.error || addData.message);
-      
-      // Hint: If it fails due to Department, we might need to create a Dept first.
-      if (addData.error && addData.error.includes("Department")) {
-        console.log("   (Hint: You might need to create a Department first via /api/admin/add-department)");
-      }
     }
 
   } catch (error) {
