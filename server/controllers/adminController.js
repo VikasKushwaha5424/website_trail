@@ -8,25 +8,34 @@ const FacultyCourse = require("../models/FacultyCourse");
 // 1. ADD USER (Generic: Handles Student, Faculty, or Admin)
 exports.addUser = async (req, res) => {
   try {
-    // FIX: Extracted 'rollNumber' from request body
-    const { name, email, password, role, departmentId, rollNumber, specificData } = req.body;
+    // ✅ FIX: Destructure all fields directly from req.body (matches Frontend flat structure)
+    const { 
+      name, 
+      email, 
+      password, 
+      role, 
+      departmentId, 
+      rollNumber, 
+      batch,       // Direct access (was specificData.batch)
+      qualification // Direct access (was specificData.qualification)
+    } = req.body;
     
-    // 1. Create the Login User (Added rollNumber here)
+    // 1. Create the Login User
     const newUser = await User.create({
       name, 
       email, 
       passwordHash: password, 
       role,
-      rollNumber // <--- CRITICAL FIX: Required by User Model
+      rollNumber 
     });
 
     // 2. If 'Student', create Student Profile
     if (role === "Student") {
       await Student.create({
         userId: newUser._id,
-        departmentId,
-        rollNo: specificData.rollNo || rollNumber, // Fallback to main rollNumber if specific is missing
-        batch: specificData.batch
+        departmentId, // Ensure this is a valid ObjectId if your Schema requires it
+        rollNo: rollNumber,
+        batch: batch // Usage of flattened variable
       });
     }
 
@@ -35,7 +44,7 @@ exports.addUser = async (req, res) => {
       await FacultyProfile.create({
         userId: newUser._id,
         departmentId,
-        qualification: specificData.qualification
+        qualification: qualification // Usage of flattened variable
       });
     }
 
