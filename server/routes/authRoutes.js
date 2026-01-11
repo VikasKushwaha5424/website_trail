@@ -1,6 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const { loginUser, googleLogin } = require("../controllers/authController");
+
+// Import the controller functions (Make sure registerUser is added here!)
+const { registerUser, loginUser, googleLogin } = require("../controllers/authController");
+
+// @route   POST /api/auth/register  <-- THIS WAS MISSING
+// @desc    Register a new user
+// @access  Public
+router.post("/register", registerUser);
 
 // @route   POST /api/auth/login
 // @desc    Login with Username/Email & Password

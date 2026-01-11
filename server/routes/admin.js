@@ -1,25 +1,34 @@
 const express = require("express");
 const router = express.Router();
+
+// 1. Import Middleware
+// We use 'authorize' to strictly allow only 'admin' role
+const { protect, authorize } = require("../middleware/authMiddleware"); 
+
+// 2. Import Controller
 const adminController = require("../controllers/adminController");
-const { protect, adminOnly } = require("../middleware/authMiddleware");
 
-// 1. Apply Middleware to ALL routes in this file
-// (User must be logged in AND be an Admin)
+// 3. Apply Middleware Globally
+// All routes below require the user to be logged in AND have the role 'admin'
 router.use(protect);
-router.use(adminOnly);
+router.use(authorize("admin", "Admin")); 
 
-// 2. Define Routes
+// 4. Define Routes
 
 // POST /api/admin/add-user
+// Creates a new Student or Faculty
 router.post("/add-user", adminController.addUser);
 
-// POST /api/admin/assign-faculty
-router.post("/assign-faculty", adminController.assignFaculty);
-
-// POST /api/admin/add-dept
-router.post("/add-dept", adminController.addDepartment);
+// POST /api/admin/add-department
+// Adds a new Department (e.g., CSE, ECE)
+router.post("/add-department", adminController.addDepartment);
 
 // POST /api/admin/add-course
+// Adds a new Subject/Course
 router.post("/add-course", adminController.addCourse);
+
+// POST /api/admin/assign-faculty
+// Assigns a teacher to a specific subject
+router.post("/assign-faculty", adminController.assignFaculty);
 
 module.exports = router;

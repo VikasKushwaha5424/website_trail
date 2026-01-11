@@ -1,16 +1,22 @@
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
-  // 1️⃣ IDENTITY (Primary Keys)
-  // This acts as Roll Number for Students AND Employee ID for Faculty
-  username: { 
+  // 1️⃣ IDENTITY
+  name: { 
     type: String, 
     required: true, 
-    unique: true, 
-    trim: true,
-    uppercase: true // "cse-101" becomes "CSE-101" automatically
+    trim: true 
   },
   
+  // Replaces 'username' from your old code to match the Controller's 'rollNumber'
+  rollNumber: { 
+    type: String, 
+    uppercase: true,
+    trim: true,
+    // We make it sparse/optional because 'Admin' might not always have one
+    sparse: true 
+  },
+
   email: { 
     type: String, 
     required: true, 
@@ -33,12 +39,13 @@ const userSchema = new mongoose.Schema({
   
   role: { 
     type: String, 
-    enum: ["STUDENT", "FACULTY", "ADMIN", "PRINCIPAL"], // Standardized Enum
-    default: "STUDENT",
+    // We allow BOTH uppercase and lowercase to prevent "validation failed" errors
+    enum: ["student", "STUDENT", "faculty", "FACULTY", "admin", "ADMIN", "principal", "PRINCIPAL"], 
+    default: "student",
     required: true
   },
 
-  // 3️⃣ ACCOUNT STATUS & AUDIT
+  // 3️⃣ ACCOUNT STATUS
   isActive: { 
     type: Boolean, 
     default: true 
@@ -49,7 +56,7 @@ const userSchema = new mongoose.Schema({
     default: null 
   },
 
-  // Brute-force protection
+  // Brute-force protection (Kept from your old code - Good idea!)
   failedLoginAttempts: { 
     type: Number, 
     default: 0 
@@ -73,7 +80,7 @@ const userSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-// Optional: Virtual field to check if account is currently locked
+// Optional: Helper to check if account is locked
 userSchema.virtual('isLocked').get(function() {
   return !!(this.accountLockedUntil && this.accountLockedUntil > Date.now());
 });

@@ -1,4 +1,5 @@
-// testAuth.js - Quick Backend Test
+// testAuth.js
+// A simple script to test Backend Auth without Postman
 
 const BASE_URL = "http://localhost:5000/api/auth";
 
@@ -6,9 +7,9 @@ const BASE_URL = "http://localhost:5000/api/auth";
 const testUser = {
   name: "Test Admin",
   email: "admin@test.com",
-  password: "password123", 
-  role: "admin", // We try to create an admin
-  rollNumber: "ADM001" 
+  password: "password123", // secure password
+  role: "admin",           // We try to create an admin
+  rollNumber: "ADM001"     // Required if your schema enforces it
 };
 
 // Function to Register
@@ -26,7 +27,7 @@ async function registerUser() {
     if (response.ok) {
       console.log("✅ Registration Success:", data);
     } else {
-      console.log("⚠️ Registration Message:", data.message);
+      console.log("⚠️ Registration Failed (might already exist):", data.message);
     }
   } catch (error) {
     console.error("❌ Network Error (Register):", error.cause || error);
@@ -50,7 +51,8 @@ async function loginUser() {
 
     if (response.ok) {
       console.log("✅ Login Success!");
-      console.log("🔑 Received Token:", data.token ? "Yes" : "No");
+      console.log("🔑 Received Token:", data.token ? "Yes (Token Received)" : "No Token Found");
+      if (data.token) console.log("Token Preview:", data.token.substring(0, 20) + "...");
     } else {
       console.log("❌ Login Failed:", data.message);
     }

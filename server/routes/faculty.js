@@ -2,14 +2,14 @@ const express = require("express");
 const router = express.Router();
 
 // 1. Import Middleware
-// We need 'facultyOnly' to make sure students can't mark their own attendance!
+// 'protect' checks for a token, 'facultyOnly' checks for role
 const { protect, facultyOnly } = require("../middleware/authMiddleware"); 
 
 // 2. Import Controller
 const facultyController = require("../controllers/facultyController");
 
 // 3. Apply Middleware Globally
-// (Everything below this line requires Login + Faculty Role)
+// (All routes below this line require Login + Faculty Role)
 router.use(protect);
 router.use(facultyOnly); 
 

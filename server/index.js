@@ -6,12 +6,10 @@ const connectDB = require("./config/db");
 // 1. Import Routes
 const authRoute = require("./routes/authRoutes"); 
 const facultyRoute = require("./routes/faculty"); 
-const adminRoute = require("./routes/admin"); // Check if filename is admin.js or adminRoutes.js
-const studentRoute = require("./routes/student");
-const userRoute = require("./routes/userRoutes"); // <--- NEW: For Faculty List
-const courseRoute = require("./routes/courseRoutes"); // <--- NEW: For Course List
+const adminRoute = require("./routes/admin"); 
+const studentRoute = require("./routes/studentRoutes"); // FIXED: Filename was studentRoutes.js
 const userRoute = require("./routes/userRoutes"); 
-const courseRoute = require("./routes/courseRoutes");
+const courseRoute = require("./routes/courseRoutes"); 
 
 // 2. Load Environment Variables
 dotenv.config();
@@ -20,14 +18,14 @@ dotenv.config();
 connectDB();
 
 // ----------------------------------------------------
-// 4. REGISTER MODELS (Prevents "Schema hasn't been registered" errors)
+// 4. REGISTER MODELS 
 // ----------------------------------------------------
 require("./models/User");
 require("./models/Department");
 require("./models/Course");
-require("./models/Student");
+require("./models/StudentProfile"); // FIXED: Filename is StudentProfile.js
 require("./models/FacultyProfile");
-require("./models/FacultyCourse");
+require("./models/CourseOffering"); // FIXED: Replaced FacultyCourse with CourseOffering
 require("./models/Enrollment");
 require("./models/Attendance");
 // ----------------------------------------------------
@@ -40,13 +38,12 @@ app.use(express.json());
 app.use(cors()); 
 
 // 7. Define Routes
-// Make sure these match what is in your Frontend API calls!
 app.use("/api/auth", authRoute); 
 app.use("/api/faculty", facultyRoute); 
 app.use("/api/admin", adminRoute);
 app.use("/api/student", studentRoute);
-app.use("/api/users", userRoute);   // <--- NEW: Handles /api/users/faculty-list
-app.use("/api/courses", courseRoute); // <--- NEW: Handles /api/courses
+app.use("/api/users", userRoute);   
+app.use("/api/courses", courseRoute); 
 
 
 // 8. Basic Test Route
