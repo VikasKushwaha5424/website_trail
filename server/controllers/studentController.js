@@ -4,7 +4,7 @@ const CourseOffering = require("../models/CourseOffering");
 const Attendance = require("../models/Attendance");
 const Marks = require("../models/Marks");
 
-// 👇 CRITICAL FIX: Import these so Mongoose knows they exist!
+// 👇 CRITICAL IMPORTS: Required for .populate() to work correctly
 const Department = require("../models/Department"); 
 const Course = require("../models/Course");
 const FacultyProfile = require("../models/FacultyProfile");
@@ -18,7 +18,8 @@ exports.getStudentProfile = async (req, res) => {
     // req.user.id comes from the Auth Middleware
     const profile = await StudentProfile.findOne({ userId: req.user.id })
       .populate("departmentId", "name code") // Needs Department model
-      .populate("userId", "email username"); // Needs User model
+      // 👇 FIXED: User model uses 'name', NOT 'username'
+      .populate("userId", "email name rollNumber"); 
 
     if (!profile) {
       return res.status(404).json({ message: "Student profile not found." });
