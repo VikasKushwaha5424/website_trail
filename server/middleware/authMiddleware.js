@@ -1,57 +1,61 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// 1. PROTECT: Verifies the User is Logged In
-const protect = async (req, res, next) => {
+// =========================================================
+// 1️⃣ PROTECT: Verify Token & Load User
+// =========================================================
+exports.protect = async (req, res, next) => {
   let token;
 
+  // Check for "Bearer <token>" in the Authorization header
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {
     try {
-      // Get token from header
+      // 1. Get token from header (Remove "Bearer " prefix)
       token = req.headers.authorization.split(" ")[1];
 
-      // Verify token
+      // 2. Verify Token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Get user from the token ID (exclude password)
-      // Check for both 'id' and '_id' to be safe
-      req.user = await User.findById(decoded.id || decoded._id).select("-passwordHash");
+      // 3. Get User from Database (Exclude password)
+      // We accept 'id' because our generateToken used 'id'
+      req.user = await User.findById(decoded.id).select("-passwordHash");
 
       if (!req.user) {
-        return res.status(401).json({ message: "User not found" });
+        return res.status(401).json({ message: "Not authorized. User ID not found." });
       }
 
-      next();
+      // 4. Check if Account is Active (Level-2 Safety)
+      if (!req.user.isActive) {
+        return res.status(403).json({ message: "Account is disabled. Contact Admin." });
+      }
+
+      next(); // Move to the next middleware/controller
     } catch (error) {
-      console.error(error);
-      res.status(401).json({ message: "Not authorized, token failed" });
+      console.error("Auth Middleware Error:", error.message);
+      return res.status(401).json({ message: "Not authorized, invalid token" });
     }
-  } else {
-    // If no token at all
-    res.status(401).json({ message: "Not authorized, no token" });
+  }
+
+  if (!token) {
+    return res.status(401).json({ message: "Not authorized, no token provided" });
   }
 };
 
-// 2. ADMIN ONLY: Checks if User is Admin
-const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === "Admin") {
+// =========================================================
+// 2️⃣ AUTHORIZE: Role-Based Access Control (RBAC)
+// =========================================================
+// Usage: router.get('/admin-dashboard', protect, authorize('ADMIN', 'PRINCIPAL'), controller)
+exports.authorize = (...roles) => {
+  return (req, res, next) => {
+    // Check if the user's role is in the allowed list
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        message: `Access Denied: Role '${req.user.role}' is not authorized.` 
+      });
+    }
     next();
-  } else {
-    res.status(403).json({ message: "Access denied. Admins only." });
-  }
+  };
 };
-
-// 3. FACULTY ONLY: Checks if User is Faculty
-const facultyOnly = (req, res, next) => {
-  if (req.user && req.user.role === 'Faculty') {
-    next();
-  } else {
-    res.status(403).json({ message: 'Access denied. Faculty only.' });
-  }
-};
-
-// Export ALL functions
-module.exports = { protect, adminOnly, facultyOnly };

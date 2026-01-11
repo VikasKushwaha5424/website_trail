@@ -4,47 +4,54 @@ const FacultyProfile = require("../models/FacultyProfile");
 const Course = require("../models/Course");
 const Department = require("../models/Department");
 const FacultyCourse = require("../models/FacultyCourse");
+const bcrypt = require("bcryptjs"); // Ensure you have: npm install bcryptjs
 
-// 1. ADD USER (Generic: Handles Student, Faculty, or Admin)
+// 1. ADD USER
 exports.addUser = async (req, res) => {
   try {
-    // ✅ FIX: Destructure all fields directly from req.body (matches Frontend flat structure)
     const { 
-      name, 
-      email, 
-      password, 
-      role, 
-      departmentId, 
-      rollNumber, 
-      batch,       // Direct access (was specificData.batch)
-      qualification // Direct access (was specificData.qualification)
+      name, email, password, role, 
+      rollNumber, batch, qualification 
     } = req.body;
     
-    // 1. Create the Login User
+    let { departmentId } = req.body;
+
+    // 1. Handle Department ID (Convert "CSE" -> ObjectId if necessary)
+    if (departmentId && !departmentId.match(/^[0-9a-fA-F]{24}$/)) {
+        // If it's NOT a valid ObjectId (e.g., it is "CSE"), lookup the ID
+        const dept = await Department.findOne({ code: departmentId }); // or { name: departmentId }
+        if (!dept) {
+            return res.status(400).json({ error: `Invalid Department Code: ${departmentId}` });
+        }
+        departmentId = dept._id;
+    }
+
+    // 2. Hash Password (Optional: Remove if User Model handles this)
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // 3. Create User
     const newUser = await User.create({
       name, 
       email, 
-      passwordHash: password, 
+      passwordHash: hashedPassword, 
       role,
       rollNumber 
     });
 
-    // 2. If 'Student', create Student Profile
+    // 4. Create Specific Profile
     if (role === "Student") {
       await Student.create({
         userId: newUser._id,
-        departmentId, // Ensure this is a valid ObjectId if your Schema requires it
+        departmentId, 
         rollNo: rollNumber,
-        batch: batch // Usage of flattened variable
+        batch
       });
-    }
-
-    // 3. If 'Faculty', create Faculty Profile
-    if (role === "Faculty") {
+    } else if (role === "Faculty") {
       await FacultyProfile.create({
         userId: newUser._id,
         departmentId,
-        qualification: qualification // Usage of flattened variable
+        qualification
       });
     }
 
@@ -55,7 +62,7 @@ exports.addUser = async (req, res) => {
   }
 };
 
-// 2. ADD DEPARTMENT
+// ... (Rest of the controller functions: addDepartment, addCourse, assignFaculty remain the same)
 exports.addDepartment = async (req, res) => {
   try {
     const dept = await Department.create(req.body);
@@ -65,7 +72,6 @@ exports.addDepartment = async (req, res) => {
   }
 };
 
-// 3. ADD COURSE
 exports.addCourse = async (req, res) => {
   try {
     const course = await Course.create(req.body);
@@ -75,7 +81,6 @@ exports.addCourse = async (req, res) => {
   }
 };
 
-// 4. ASSIGN FACULTY TO COURSE
 exports.assignFaculty = async (req, res) => {
   try {
     const { facultyId, courseId } = req.body;

@@ -1,24 +1,25 @@
 // testAuth.js
-// Note: We use native 'fetch' (available in Node v18+), so no require needed.
+// Run with: node testAuth.js
+// Requirement: Node v18+ (for native fetch)
 
 const BASE_URL = "http://localhost:5000/api/auth";
 
 async function testLogin() {
-  console.log("\n🧪 STARTING AUTHENTICATION TESTS...");
-  console.log("=====================================");
+  console.log("\n🧪 STARTING LEVEL-2 AUTHENTICATION TESTS...");
+  console.log("===========================================");
 
   // ----------------------------------------------------
-  // TEST 1: Manual Login (Roll Number + Password)
+  // TEST 1: Manual Login (Username + Password)
   // ----------------------------------------------------
-  console.log("\n1️⃣  Testing Manual Login (Roll No: STU001)...");
+  console.log("\n1️⃣  Testing Manual Login (User: CSE2025001)...");
   
   try {
     const response = await fetch(`${BASE_URL}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        rollNumber: "STU001", // This user was created in seed.js
-        password: "123456"
+        username: "CSE2025001", // ✅ UPDATED: Matches new Seed Data
+        password: "password123" // ✅ UPDATED: Matches new Seed Password
       })
     });
 
@@ -26,11 +27,12 @@ async function testLogin() {
 
     if (response.ok) {
       console.log("✅ SUCCESS! Logged in as:", data.user.email);
-      // Check if token exists before trying to print it
+      console.log(`   Role: ${data.user.role}`); // Verifying Role
+      
       if (data.token) {
         console.log("🔑 Token Received:", data.token.substring(0, 20) + "...");
       } else {
-        console.log("⚠️  Login successful but NO TOKEN received (Check authController).");
+        console.log("⚠️  Login successful but NO TOKEN received.");
       }
     } else {
       console.log("❌ FAILED:", data.message);
@@ -40,17 +42,16 @@ async function testLogin() {
   }
 
   // ----------------------------------------------------
-  // TEST 2: Google Login (Simulation)
+  // TEST 2: Google Login (Email Only)
   // ----------------------------------------------------
-  console.log("\n2️⃣  Testing Google Login (Email: john@student.com)...");
+  console.log("\n2️⃣  Testing Google Login (Email: vikas@student.edu)...");
 
   try {
-    // ✅ FIXED URL: Now pointing to /google-login (instead of /google)
     const googleResponse = await fetch(`${BASE_URL}/google-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: "john@student.com" // This email matches STU001
+        email: "vikas@student.edu" // ✅ UPDATED: Matches new Seed Email
       })
     });
 
@@ -58,10 +59,10 @@ async function testLogin() {
 
     if (googleResponse.ok) {
       console.log("✅ SUCCESS! Google Account Linked found.");
+      console.log(`   User: ${googleData.user.username}`);
+      
       if (googleData.token) {
         console.log("🔑 Token Received:", googleData.token.substring(0, 20) + "...");
-      } else {
-        console.log("⚠️  Login successful but NO TOKEN received.");
       }
     } else {
       console.log("❌ FAILED:", googleData.message);
@@ -70,7 +71,34 @@ async function testLogin() {
     console.log("❌ ERROR:", err.message);
   }
   
-  console.log("\n=====================================");
+  // ----------------------------------------------------
+  // TEST 3: Fail Scenario (Wrong Password)
+  // ----------------------------------------------------
+  console.log("\n3️⃣  Testing Invalid Password...");
+
+  try {
+    const failResponse = await fetch(`${BASE_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "CSE2025001",
+        password: "wrongpassword"
+      })
+    });
+    
+    const failData = await failResponse.json();
+    
+    if (failResponse.status === 401) {
+      console.log("✅ SUCCESS! System correctly rejected invalid password.");
+    } else {
+      console.log("❌ FAILED: Should have rejected login, but got:", failData);
+    }
+
+  } catch (err) {
+     console.log("❌ ERROR:", err.message);
+  }
+
+  console.log("\n===========================================");
 }
 
 testLogin();

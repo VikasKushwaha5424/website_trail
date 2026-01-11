@@ -1,111 +1,196 @@
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-const bcrypt = require("bcryptjs");
+/* 🚀 LEVEL-2 SEED SCRIPT
+  Run with: node seed.js
+*/
 
-// Import Models
-const User = require("./models/User");
-const Student = require("./models/Student");
-const FacultyProfile = require("./models/FacultyProfile");
-const Department = require("./models/Department");
-const Course = require("./models/Course");
-const FacultyCourse = require("./models/FacultyCourse");
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+require('dotenv').config();
 
-dotenv.config();
+// 📦 Import ALL your new models
+const User = require('./models/User');
+const Department = require('./models/Department');
+const Course = require('./models/Course');
+const Semester = require('./models/Semester');
+const FacultyProfile = require('./models/FacultyProfile');
+const StudentProfile = require('./models/StudentProfile');
+const CourseOffering = require('./models/CourseOffering');
+const Enrollment = require('./models/Enrollment');
+const Attendance = require('./models/Attendance');
+const Marks = require('./models/Marks');
+const Announcement = require('./models/Announcement');
 
-// Connect to DB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.log(err));
+// 🔌 Database Connection
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/college_portal');
+    console.log('✅ MongoDB Connected');
+  } catch (err) {
+    console.error('❌ Database Connection Failed', err);
+    process.exit(1);
+  }
+};
 
 const seedData = async () => {
+  await connectDB();
+
+  console.log('🧹 Clearing Database...');
+  await mongoose.connection.db.dropDatabase();
+
   try {
-    console.log("🔴 Clearing existing data...");
-    // 1. Clear existing data
-    await User.deleteMany({});
-    await Student.deleteMany({});
-    await FacultyProfile.deleteMany({});
-    await Department.deleteMany({});
-    await Course.deleteMany({});
-    await FacultyCourse.deleteMany({});
+    // ============================================
+    // 1️⃣ INFRASTRUCTURE (Departments & Semesters)
+    // ============================================
     
-    console.log("🧹 Database Cleared");
+    // Create Departments
+    const deptCSE = await Department.create({ name: 'Computer Science', code: 'CSE' });
+    const deptMECH = await Department.create({ name: 'Mechanical Eng.', code: 'MECH' });
+    console.log('🏢 Departments Created');
 
-    // 2. Create Department
-    const cse = await Department.create({ 
-      departmentName: "Computer Science", 
-      departmentCode: "CSE" 
+    // Create Semester (The "Time" Context)
+    const currentSemester = await Semester.create({
+      name: 'Fall 2025',
+      code: '2025-FALL',
+      academicYear: '2025-2026',
+      startDate: new Date('2025-08-01'),
+      endDate: new Date('2025-12-15')
     });
-    console.log("🏢 Dept Created: CSE");
+    console.log('📅 Semester Created');
 
-    // 3. Create Course (UPDATED TO FIX YOUR ERROR)
-    const cs101 = await Course.create({
-      subjectName: "Intro to Programming", // Fixed: matches schema
-      subjectCode: "CS101",                // Fixed: matches schema
-      departmentId: cse._id,
-      credits: 4,
-      academicYear: "2024-2025",           // Added: Required by your schema
-      semester: 1                          // Added: Required by your schema
-    });
-    console.log("📚 Course Created: CS101");
-
-    // 4. Create Admin User
-    const adminPass = await bcrypt.hash("admin123", 10);
-    await User.create({
-      name: "Super Admin",
-      email: "admin@college.edu",
-      passwordHash: adminPass,
-      role: "Admin",
-      rollNumber: "ADM001"
-    });
-    console.log("🛠️ Admin Created: admin@college.edu");
-
-    // 5. Create Faculty User & Profile
-    const commonPass = await bcrypt.hash("123456", 10);
+    // ============================================
+    // 2️⃣ AUTHENTICATION (Users)
+    // ============================================
     
+    const passwordHash = await bcrypt.hash('password123', 10);
+
+    // Admin User
+    const adminUser = await User.create({
+      username: 'ADMIN01',
+      email: 'admin@college.edu',
+      passwordHash,
+      role: 'ADMIN'
+    });
+
+    // Faculty User (Prof. Smith)
     const facultyUser = await User.create({
-      name: "Dr. Smith",
-      email: "faculty@college.edu",
-      passwordHash: commonPass,
-      role: "Faculty",
-      rollNumber: "FAC001"
+      username: 'FAC001',
+      email: 'smith@college.edu',
+      passwordHash,
+      role: 'FACULTY'
     });
 
-    await FacultyProfile.create({
-      userId: facultyUser._id,
-      departmentId: cse._id,
-      qualification: "Ph.D in AI"
-    });
-
-    // 6. Assign Faculty to Course
-    await FacultyCourse.create({
-      facultyId: facultyUser._id,
-      courseId: cs101._id
-    });
-    console.log("👨‍🏫 Faculty Created & Assigned: Dr. Smith -> CS101");
-
-    // 7. Create Student User & Profile
+    // Student User (Vikas)
     const studentUser = await User.create({
-      name: "Rahul Kumar",
-      email: "student@college.edu",
-      passwordHash: commonPass,
-      role: "Student",
-      rollNumber: "21CSE01"
+      username: 'CSE2025001', // Roll Number as Username
+      email: 'vikas@student.edu',
+      passwordHash,
+      role: 'STUDENT'
+    });
+    console.log('🔐 Users Created');
+
+    // ============================================
+    // 3️⃣ PROFILES (Personal Data)
+    // ============================================
+
+    // Faculty Profile
+    const facultyProfile = await FacultyProfile.create({
+      userId: facultyUser._id,
+      departmentId: deptCSE._id,
+      firstName: 'John',
+      lastName: 'Smith',
+      designation: 'Professor',
+      qualification: 'Ph.D in AI',
+      joiningDate: new Date('2020-01-15'),
+      employmentType: 'PERMANENT'
     });
 
-    await Student.create({
+    // Student Profile
+    const studentProfile = await StudentProfile.create({
       userId: studentUser._id,
-      departmentId: cse._id,
-      rollNo: "21CSE01",
-      batch: 2024
+      departmentId: deptCSE._id,
+      firstName: 'Vikas',
+      lastName: 'Kushwaha',
+      rollNumber: 'CSE2025001',
+      batchYear: 2025,
+      currentSemester: 5,
+      guardianDetails: {
+        name: 'Mr. Kushwaha',
+        phone: '9876543210'
+      }
     });
-    console.log("🎓 Student Created: Rahul (CSE)");
+    console.log('👤 Profiles Created');
 
-    console.log("✅ SEEDING COMPLETE! Press Ctrl + C to exit.");
+    // ============================================
+    // 4️⃣ ACADEMICS (Courses & Offerings)
+    // ============================================
+
+    // Define the Course (Catalog)
+    const pyCourse = await Course.create({
+      name: 'Advanced Python',
+      code: 'CS-301',
+      credits: 4,
+      departmentId: deptCSE._id,
+      type: 'CORE'
+    });
+
+    // Create the Offering (Real Class)
+    // "Prof. Smith teaches Advanced Python in Fall 2025"
+    const pyOffering = await CourseOffering.create({
+      courseId: pyCourse._id,
+      facultyId: facultyProfile._id,
+      semesterId: currentSemester._id,
+      section: 'A',
+      roomNumber: 'Lab-104',
+      capacity: 60
+    });
+    console.log('📚 Course & Offering Created');
+
+    // ============================================
+    // 5️⃣ STUDENT ACTIONS (Enrollment, Attendance, Marks)
+    // ============================================
+
+    // 1. Enroll Vikas in Python
+    await Enrollment.create({
+      studentId: studentProfile._id,
+      courseOfferingId: pyOffering._id,
+      status: 'ENROLLED'
+    });
+
+    // 2. Mark Attendance for Today
+    await Attendance.create({
+      studentId: studentProfile._id,
+      courseOfferingId: pyOffering._id,
+      date: new Date(),
+      status: 'PRESENT',
+      markedBy: facultyUser._id
+    });
+
+    // 3. Upload Marks (Internal 1)
+    await Marks.create({
+      studentId: studentProfile._id,
+      courseOfferingId: pyOffering._id,
+      examType: 'INTERNAL_1',
+      marksObtained: 42,
+      maxMarks: 50
+    });
+    console.log('🎓 Enrollment, Attendance & Marks Added');
+
+    // ============================================
+    // 6️⃣ COMMUNICATION (Announcements)
+    // ============================================
+    await Announcement.create({
+      title: 'Mid-Sem Exams Postponed',
+      message: 'Due to heavy rains, exams are shifted by 2 days.',
+      targetAudience: 'ALL',
+      createdBy: adminUser._id,
+      isImportant: true
+    });
+    console.log('📢 Announcement Posted');
+
+    console.log('\n🎉 SUCCESS: Level-2 Database Seeded Successfully!');
     process.exit();
 
-  } catch (err) {
-    console.error("❌ Error Seeding:", err);
-    if (err.errors) console.error("Details:", err.errors);
+  } catch (error) {
+    console.error('❌ Seeding Failed:', error);
     process.exit(1);
   }
 };

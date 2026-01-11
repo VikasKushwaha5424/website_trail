@@ -1,92 +1,112 @@
 const User = require("../models/User");
-const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
-// HELPER: Generate Token
-const generateToken = (id, role) => {
-  return jwt.sign({ id, role }, process.env.JWT_SECRET || "fallback_secret", {
-    expiresIn: "30d",
-  });
+// HELPER: Generate JWT Token
+const generateToken = (id, role, username) => {
+  return jwt.sign(
+    { id, role, username }, 
+    process.env.JWT_SECRET || "fallback_secret", 
+    { expiresIn: "1d" }
+  );
 };
 
 // ==========================================
-// OPTION 1: MANUAL LOGIN (Roll No + Password)
+// 1. UNIVERSAL LOGIN (Username/Email + Password)
 // ==========================================
 exports.loginUser = async (req, res) => {
-  try {
-    const { rollNumber, password } = req.body;
+  // We accept "username" (which can be Roll No, Email, or Emp ID)
+  // This allows the frontend to send { username: "CSE2025001" ... }
+  const { username, password } = req.body;
 
-    // 1. Find user by Roll Number
-    const user = await User.findOne({ rollNumber });
+  try {
+    // 🔍 STEP 1: Find User (Allow Login by Username OR Email)
+    const user = await User.findOne({
+      $or: [{ username: username }, { email: username }]
+    });
 
     if (!user) {
-        return res.status(404).json({ message: "Roll Number not found" });
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // 🔒 STEP 2: Security Checks
+    if (!user.isActive) {
+      return res.status(403).json({ message: "Account is disabled. Contact Admin." });
     }
     
-    if (!user.isActive) {
-        return res.status(403).json({ message: "Account Inactive" });
+    // Check if account is locked (Level-2 Feature)
+    if (user.accountLockedUntil && user.accountLockedUntil > Date.now()) {
+      return res.status(403).json({ 
+        message: "Account is temporarily locked due to failed attempts. Try later." 
+      });
     }
 
-    // 2. ✅ CHECK PASSWORD CORRECTLY (Using bcrypt)
-    // "password" is what they typed (123456)
-    // "user.passwordHash" is the scrambled database version
+    // 🔑 STEP 3: Verify Password
     const isMatch = await bcrypt.compare(password, user.passwordHash);
-
+    
     if (!isMatch) {
-       return res.status(400).json({ message: "Invalid credentials" });
+      // TODO: Increment failedLoginAttempts here for Level-3 security
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // 3. Success
-    const token = generateToken(user._id, user.role);
+    // ✅ STEP 4: Success - Generate Token
+    const token = generateToken(user._id, user.role, user.username);
 
-    res.status(200).json({
+    res.json({
+      success: true,
       message: "Login successful",
-      token: token,
+      token,
       user: {
-        _id: user._id,
-        name: user.name, // <--- ✅ ADDED: Fixes "Welcome undefined"
-        rollNumber: user.rollNumber,
+        id: user._id,
+        username: user.username,
         email: user.email,
-        role: user.role,
+        role: user.role
+        // NOTE: 'name' is NOT returned here. 
+        // Frontend must call GET /api/student/profile to get the name.
       }
     });
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error during login" });
+  } catch (error) {
+    console.error("Login Error:", error);
+    res.status(500).json({ message: "Server Error during login" });
   }
 };
 
 // ==========================================
-// OPTION 2: GOOGLE LOGIN (Email Only)
+// 2. GOOGLE LOGIN (Email Only)
 // ==========================================
 exports.googleLogin = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // 1. Find user by Email
+    // 🔍 Find user by Email only
     const user = await User.findOne({ email });
 
-    if (!user) return res.status(404).json({ message: "Google email not found in database." });
-    if (!user.isActive) return res.status(403).json({ message: "Account Inactive" });
+    if (!user) {
+      return res.status(404).json({ message: "Google email not linked to any account." });
+    }
 
-    // 2. Success
-    const token = generateToken(user._id, user.role);
+    if (!user.isActive) {
+      return res.status(403).json({ message: "Account is disabled." });
+    }
+
+    // ✅ Success
+    const token = generateToken(user._id, user.role, user.username);
 
     res.status(200).json({
+      success: true,
       message: "Google Login successful",
-      token: token,
+      token,
       user: {
-        _id: user._id,
-        name: user.name, // <--- ✅ ADDED: Good for consistency
-        rollNumber: user.rollNumber,
+        id: user._id,
+        username: user.username,
         email: user.email,
-        role: user.role,
+        role: user.role
       }
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    console.error("Google Login Error:", err);
+    res.status(500).json({ message: "Server Error during Google login" });
   }
 };

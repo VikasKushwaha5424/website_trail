@@ -4,12 +4,14 @@ const cors = require("cors");
 const connectDB = require("./config/db");
 
 // 1. Import Routes
-const authRoute = require("./routes/auth"); 
+const authRoute = require("./routes/authRoutes"); 
 const facultyRoute = require("./routes/faculty"); 
 const adminRoute = require("./routes/admin"); // Check if filename is admin.js or adminRoutes.js
 const studentRoute = require("./routes/student");
 const userRoute = require("./routes/userRoutes"); // <--- NEW: For Faculty List
 const courseRoute = require("./routes/courseRoutes"); // <--- NEW: For Course List
+const userRoute = require("./routes/userRoutes"); 
+const courseRoute = require("./routes/courseRoutes");
 
 // 2. Load Environment Variables
 dotenv.config();
@@ -45,6 +47,7 @@ app.use("/api/admin", adminRoute);
 app.use("/api/student", studentRoute);
 app.use("/api/users", userRoute);   // <--- NEW: Handles /api/users/faculty-list
 app.use("/api/courses", courseRoute); // <--- NEW: Handles /api/courses
+
 
 // 8. Basic Test Route
 app.get("/", (req, res) => {
