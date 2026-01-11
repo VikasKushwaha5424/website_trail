@@ -12,12 +12,11 @@ const api = axios.create({
 // Before sending any request, check if we have a token and attach it.
 api.interceptors.request.use(
   (config) => {
-    const userInfo = localStorage.getItem('userInfo');
-    if (userInfo) {
-      const { token } = JSON.parse(userInfo);
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    // ✅ FIX: Read the token directly from localStorage (matches your Login logic)
+    const token = localStorage.getItem('token');
+    
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },

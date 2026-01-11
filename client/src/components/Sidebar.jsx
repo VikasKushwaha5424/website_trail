@@ -1,66 +1,58 @@
+// client/src/components/Sidebar.jsx
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // <--- FIXED IMPORT
-import '../layouts/Layout.css';
+import '../layouts/Layout.css'; 
 
-const Sidebar = () => {
-  const { user, logout } = useAuth(); // <--- FIXED USAGE
+const Sidebar = ({ role }) => {
   const navigate = useNavigate();
 
-  // Fallback role if user isn't loaded yet
-  const role = user?.role || 'Student'; 
-
-  // Define menu items for each role
-  const menuItems = {
+  const menuConfig = {
     Student: [
-      { path: '/student/dashboard', icon: '🏠', label: 'Dashboard' },
-      { path: '/student/courses', icon: '📚', label: 'My Courses' },
-      { path: '/student/attendance', icon: '📅', label: 'Attendance' },
-      { path: '/student/marks', icon: '📊', label: 'My Marks' },
+      { label: 'Dashboard', path: '/student/dashboard', icon: '🏠' },
+      { label: 'My Courses', path: '/student/my-courses', icon: '📚' },
+      { label: 'Attendance', path: '/student/attendance', icon: '📅' },
     ],
     Faculty: [
-      { path: '/faculty/dashboard', icon: '🏠', label: 'Dashboard' },
-      { path: '/faculty/courses', icon: '👨‍🏫', label: 'My Classes' },
-      { path: '/faculty/attendance', icon: '✅', label: 'Mark Attendance' },
+      { label: 'Dashboard', path: '/faculty/dashboard', icon: '🏠' },
+      { label: 'Mark Attendance', path: '/faculty/mark-attendance', icon: '✅' },
+      { label: 'Upload Marks', path: '/faculty/upload-marks', icon: '📝' },
     ],
     Admin: [
-      { path: '/admin/dashboard', icon: '🛠️', label: 'Dashboard' },
-      { path: '/admin/users', icon: '👥', label: 'Manage Users' },
-      { path: '/admin/assign', icon: '🔗', label: 'Assign Faculty' },
+      { label: 'Dashboard', path: '/admin/dashboard', icon: '🛠️' },
+      { label: 'Manage Users', path: '/admin/add-user', icon: '👥' },
+      { label: 'Assign Faculty', path: '/admin/assign-faculty', icon: '🔗' },
+      { label: 'Departments', path: '/admin/departments', icon: '🏢' },
     ]
   };
 
-  const currentMenu = menuItems[role] || menuItems['Student'];
+  const currentMenu = menuConfig[role] || [];
 
   const handleLogout = () => {
-    logout();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     navigate('/login');
   };
 
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2>🎓 College Portal</h2>
-        <p className="user-badge">{role}</p>
+        <h3>CMS Portal</h3>
+        <span className="role-text">{role} Mode</span>
       </div>
-
       <nav className="sidebar-nav">
-        {currentMenu.map((item) => (
+        {currentMenu.map((item, index) => (
           <NavLink 
-            key={item.path} 
+            key={index} 
             to={item.path} 
-            className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}
+            className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}
           >
-            <span className="icon">{item.icon}</span>
-            <span className="label">{item.label}</span>
+            <span className="nav-icon">{item.icon}</span>
+            <span className="nav-label">{item.label}</span>
           </NavLink>
         ))}
       </nav>
-
       <div className="sidebar-footer">
-        <button onClick={handleLogout} className="logout-btn">
-          🚪 Logout
-        </button>
+        <span className="logout-link" onClick={handleLogout}>Logout 🚪</span>
       </div>
     </div>
   );

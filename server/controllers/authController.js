@@ -44,6 +44,7 @@ exports.loginUser = async (req, res) => {
       token: token,
       user: {
         _id: user._id,
+        name: user.name, // <--- ✅ ADDED: Fixes "Welcome undefined"
         rollNumber: user.rollNumber,
         email: user.email,
         role: user.role,
@@ -77,6 +78,7 @@ exports.googleLogin = async (req, res) => {
       token: token,
       user: {
         _id: user._id,
+        name: user.name, // <--- ✅ ADDED: Good for consistency
         rollNumber: user.rollNumber,
         email: user.email,
         role: user.role,
