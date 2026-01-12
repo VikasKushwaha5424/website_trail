@@ -87,14 +87,26 @@ exports.getAttendanceStats = async (req, res) => {
     if (!student) return res.status(404).json({ message: "Student not found" });
 
     const activeSemester = await Semester.findOne({ isActive: true });
+    
+    // ✅ FIX: Handle Case with No Active Semester
+    // If we don't return here, the query defaults to all-time attendance, which is misleading.
+    if (!activeSemester) {
+        return res.json({
+            message: "No active semester currently.",
+            totalClasses: 0,
+            presentClasses: 0,
+            absentClasses: 0,
+            attendancePercentage: "0.00"
+        });
+    }
+
+    // Proceed only if there IS an active semester
     let query = { studentId: student._id };
     
     // Only count attendance for the current semester's offerings
-    if (activeSemester) {
-        const currentOfferings = await CourseOffering.find({ semesterId: activeSemester._id }).select("_id");
-        const offeringIds = currentOfferings.map(o => o._id);
-        query.courseOfferingId = { $in: offeringIds };
-    }
+    const currentOfferings = await CourseOffering.find({ semesterId: activeSemester._id }).select("_id");
+    const offeringIds = currentOfferings.map(o => o._id);
+    query.courseOfferingId = { $in: offeringIds };
 
     const totalClasses = await Attendance.countDocuments(query);
     const presentClasses = await Attendance.countDocuments({ 

@@ -9,7 +9,8 @@ const { Server } = require("socket.io");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("express-mongo-sanitize");
-const xss = require("xss-clean");
+// ✅ SECURITY: Use modern 'xss' library
+const xss = require("xss");
 
 // 1. Import Routes
 const authRoute = require("./routes/authRoutes"); 
@@ -67,8 +68,31 @@ app.use(limiter);
 // D. Data Sanitization (Prevents MongoDB Injection)
 app.use(mongoSanitize());
 
-// E. XSS Protection (Prevents HTML Injection)
-app.use(xss());
+// E. XSS Protection (Modern Replacement)
+// Helper function to recursively sanitize objects
+const sanitizeData = (data) => {
+    if (!data) return data;
+    if (typeof data === 'string') {
+        return xss(data); // Sanitize string
+    }
+    if (Array.isArray(data)) {
+        return data.map(item => sanitizeData(item));
+    }
+    if (typeof data === 'object') {
+        Object.keys(data).forEach(key => {
+            data[key] = sanitizeData(data[key]);
+        });
+    }
+    return data;
+};
+
+// Middleware to sanitize body, query, and params
+app.use((req, res, next) => {
+    if (req.body) req.body = sanitizeData(req.body);
+    if (req.query) req.query = sanitizeData(req.query);
+    if (req.params) req.params = sanitizeData(req.params);
+    next();
+});
 
 // ==========================================
 
@@ -89,6 +113,19 @@ app.get("/", (req, res) => {
 });
 
 // ==========================================
+// 9. GLOBAL ERROR HANDLER (Must be last)
+// ==========================================
+app.use((err, req, res, next) => {
+  console.error(err.stack); // Log the error stack for debugging
+  
+  // Return a clean JSON error response
+  res.status(500).json({ 
+    message: "Internal Server Error", 
+    error: process.env.NODE_ENV === "development" ? err.message : "Something went wrong"
+  });
+});
+
+// ==========================================
 // 🚀 REAL-TIME SERVER
 // ==========================================
 
@@ -96,7 +133,6 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    // 🔧 CONFIG FIX: Use env var for origin to support production deployment
     origin: process.env.CLIENT_URL || "http://localhost:3000",
     methods: ["GET", "POST"]
   }

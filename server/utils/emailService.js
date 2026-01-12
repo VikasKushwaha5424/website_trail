@@ -1,34 +1,29 @@
 const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, htmlContent) => {
-  try {
-    // 1. Create Transporter (Using Real Credentials from Env)
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,     // e.g., smtp.gmail.com
-      port: process.env.SMTP_PORT,     // e.g., 587
-      secure: false,                   // true for 465, false for other ports
-      auth: {
-        user: process.env.SMTP_USER,   // your email address
-        pass: process.env.SMTP_PASS,   // your email password or app password
-      },
-    });
+  // 1. Create Transporter
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: false, // true for 465, false for other ports
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
 
-    // 2. Send Mail
-    const info = await transporter.sendMail({
-      // ✅ FIX: Use the authenticated email to prevent rejection
-      // Most providers (Gmail, Outlook) require the 'from' address to match the auth user
-      from: `"College Portal" <${process.env.SMTP_USER}>`, 
-      to: to, 
-      subject: subject, 
-      html: htmlContent, 
-    });
+  // 2. Send Mail
+  // We do NOT use try/catch here. We let the error throw 
+  // so the calling controller can decide how to handle it.
+  const info = await transporter.sendMail({
+    from: `"College Portal" <${process.env.SMTP_USER}>`, 
+    to: to, 
+    subject: subject, 
+    html: htmlContent, 
+  });
 
-    console.log("📨 Email sent: %s", info.messageId);
-    
-    return info;
-  } catch (error) {
-    console.error("❌ Email Error:", error);
-  }
+  console.log("📨 Email sent: %s", info.messageId);
+  return info;
 };
 
 module.exports = sendEmail;

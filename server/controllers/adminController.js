@@ -108,11 +108,11 @@ exports.addCourse = async (req, res) => {
 };
 
 // =========================================================
-// 4. ASSIGN FACULTY TO COURSE (Safe Version)
+// 4. ASSIGN FACULTY TO COURSE (Race-Condition Free)
 // =========================================================
 exports.assignFaculty = async (req, res) => {
   try {
-    // 1. Accept semesterId optionally (for manual override)
+    // 1. Accept semesterId optionally
     const { facultyId, courseId, semesterId } = req.body;
     
     let targetSemesterId = semesterId;
@@ -125,28 +125,17 @@ exports.assignFaculty = async (req, res) => {
             return res.status(400).json({ error: "No Active Semester found. Please create one first." });
         }
 
-        // 🛡️ SAFETY CHECK: Prevent ambiguity if multiple semesters are accidentally active
         if (activeSemesters.length > 1) {
             return res.status(500).json({ 
-                error: "System Error: Multiple Active Semesters detected. Please specify 'semesterId' explicitly or fix database." 
+                error: "System Error: Multiple Active Semesters detected. Please specify 'semesterId' explicitly." 
             });
         }
 
         targetSemesterId = activeSemesters[0]._id;
     }
 
-    // 3. Check if assignment already exists for THIS semester
-    const existing = await CourseOffering.findOne({ 
-        facultyId, 
-        courseId,
-        semesterId: targetSemesterId 
-    });
-
-    if (existing) {
-        return res.status(400).json({ message: "Faculty is already assigned to this course for the selected semester." });
-    }
-
-    // 4. Create the assignment
+    // 3. Create the assignment directly
+    // We rely on the MongoDB Unique Index to catch duplicates/race conditions.
     await CourseOffering.create({ 
         facultyId, 
         courseId,
@@ -154,43 +143,89 @@ exports.assignFaculty = async (req, res) => {
     });
     
     res.status(200).json({ message: "Faculty assigned to course successfully" });
+
   } catch (err) {
+    // 🛡️ RACE CONDITION HANDLER
+    // If the unique index we added violates ({ facultyId, courseId, semesterId }),
+    // MongoDB throws error code 11000.
+    if (err.code === 11000) {
+        return res.status(400).json({ 
+            message: "Faculty is already assigned to this course for the selected semester." 
+        });
+    }
+
     console.error("Assign Faculty Error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
 // =========================================================
-// 5. ENROLL STUDENT IN A COURSE (With Capacity Check)
+// 5. ENROLL STUDENT IN A COURSE (Race-Condition Free)
 // =========================================================
 exports.enrollStudent = async (req, res) => {
   try {
     const { studentId, courseOfferingId } = req.body;
 
-    // 1. Check if already enrolled
-    const existing = await Enrollment.findOne({ studentId, courseOfferingId });
-    if (existing) {
-      return res.status(400).json({ message: "Student already enrolled in this class" });
+    // 1. Initial Check: Ensure Course Exists & Prevent Duplicate Enrollment first
+    // (This saves us from incrementing the counter if the student is already in the class)
+    const existingEnrollment = await Enrollment.findOne({ studentId, courseOfferingId });
+    if (existingEnrollment) {
+      return res.status(400).json({ message: "Student is already enrolled in this class." });
     }
 
-    // ✅ FIX: Check Capacity vs Current Enrollments
-    const offering = await CourseOffering.findById(courseOfferingId);
-    if (!offering) return res.status(404).json({ message: "Course Offering not found" });
+    // 2. ATOMIC CAPACITY CHECK & RESERVATION
+    // We try to find the course AND increment 'currentEnrollment' in one go.
+    // The query conditions ({ $expr: ... }) ensure we only update if there is space.
+    const offering = await CourseOffering.findOneAndUpdate(
+      { 
+        _id: courseOfferingId, 
+        $expr: { $lt: ["$currentEnrollment", "$capacity"] } // Only match if current < capacity
+      },
+      { 
+        $inc: { currentEnrollment: 1 } // Reserve the spot
+      },
+      { new: true } // Return the updated document
+    );
 
-    const currentCount = await Enrollment.countDocuments({ courseOfferingId });
-    
-    if (currentCount >= offering.capacity) {
-        return res.status(400).json({ error: `Class is Full! Capacity: ${offering.capacity}` });
+    // If 'offering' is null, it means either the ID is wrong OR the capacity condition failed.
+    if (!offering) {
+        // Let's verify if the course actually exists to give a better error message
+        const checkExists = await CourseOffering.findById(courseOfferingId);
+        if (!checkExists) {
+            return res.status(404).json({ message: "Course Offering not found" });
+        }
+        return res.status(400).json({ message: `Enrollment Failed: Class is Full (Capacity: ${checkExists.capacity})` });
     }
 
-    // 2. Create Enrollment
-    const enrollment = await Enrollment.create({
-      studentId,
-      courseOfferingId,
-      status: "ENROLLED"
-    });
+    // 3. Create Enrollment Record
+    // Since we reserved a spot, we now insert the student record.
+    try {
+        const enrollment = await Enrollment.create({
+          studentId,
+          courseOfferingId,
+          status: "ENROLLED"
+        });
 
-    res.status(201).json({ message: "Student Enrolled Successfully", enrollment });
+        res.status(201).json({ message: "Student Enrolled Successfully", enrollment });
+
+    } catch (enrollError) {
+        // 🛑 ROLLBACK STRATEGY
+        // If creating the enrollment fails (e.g., DB connection issue or race condition on unique index),
+        // we MUST release the spot we just reserved.
+        console.error("Enrollment creation failed. Rolling back capacity...", enrollError);
+        
+        await CourseOffering.findByIdAndUpdate(courseOfferingId, { 
+            $inc: { currentEnrollment: -1 } 
+        });
+
+        // Handle specific "Duplicate Key" error just in case our initial check missed a race
+        if (enrollError.code === 11000) {
+            return res.status(400).json({ message: "Student is already enrolled in this class." });
+        }
+
+        throw enrollError; // Pass other errors to the main catch block
+    }
+
   } catch (err) {
     console.error("Enrollment Error:", err);
     res.status(500).json({ error: err.message });

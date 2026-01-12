@@ -17,7 +17,8 @@ exports.registerUser = async (req, res) => {
   let user = null; 
 
   try {
-    // 🔒 SECURITY FIX: Do not extract 'role' from req.body to prevent privilege escalation
+    // 🔒 SECURITY: We extract only specific fields. 
+    // We intentionally DO NOT extract 'role' from req.body to prevent privilege escalation.
     const { name, email, password, rollNumber } = req.body;
 
     // 2. Check if Email Exists
@@ -44,7 +45,9 @@ exports.registerUser = async (req, res) => {
       name,
       email,
       passwordHash: hashedPassword,
-      role: "student", // 🔒 FORCE ROLE TO STUDENT
+      // 🔒 SECURITY FORCE: Public registration is RESTRICTED to students only.
+      // To create Faculty/Admins, use 'adminController.addUser' which requires admin token.
+      role: "student", 
       rollNumber,
       isActive: true
     });
@@ -67,7 +70,6 @@ exports.registerUser = async (req, res) => {
 
       // 7. Send Welcome Email
       // Note: If email fails, the catch block will trigger rollback.
-      // This is generally safer for consistency, but you can wrap in try/catch if you prefer soft failure.
       try {
         await sendEmail(email, "Welcome! 🎓", `<h1>Hello ${name}, welcome to the portal.</h1>`);
       } catch (emailErr) {

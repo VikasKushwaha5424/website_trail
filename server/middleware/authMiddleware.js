@@ -7,26 +7,32 @@ const User = require("../models/User");
 exports.protect = async (req, res, next) => {
   let token;
 
-  // Check for "Bearer <token>" in the Authorization header
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
   ) {
     try {
-      // 1. Get token from header (Remove "Bearer " prefix)
-      token = req.headers.authorization.split(" ")[1];
+      // 1. Get token safely
+      const parts = req.headers.authorization.split(" ");
+      if (parts.length === 2) {
+        token = parts[1];
+      }
+
+      if (!token) {
+        return res.status(401).json({ message: "Not authorized, no token found" });
+      }
 
       // 2. Verify Token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
-      // 3. Load user from Database (Exclude password)
+      // 3. Load user
       req.user = await User.findById(decoded.id).select("-passwordHash");
 
       if (!req.user) {
         return res.status(401).json({ message: "Not authorized. User ID not found." });
       }
 
-      // 4. Check if Account is Active
+      // 4. Check Activity
       if (req.user.isActive === false) {
         return res.status(403).json({ message: "Account is disabled. Contact Admin." });
       }
@@ -45,10 +51,9 @@ exports.protect = async (req, res, next) => {
 // 2️⃣ FACULTY ONLY: Specific Role Check
 // =========================================================
 exports.facultyOnly = (req, res, next) => {
-  // ✅ FIXED: Check for both lowercase and uppercase roles
-  // This prevents issues if a user is saved as "FACULTY" vs "faculty"
   const allowedRoles = ['faculty', 'FACULTY', 'admin', 'ADMIN'];
   
+  // Safety check for req.user
   if (req.user && allowedRoles.includes(req.user.role)) {
     next();
   } else {
@@ -63,8 +68,12 @@ exports.facultyOnly = (req, res, next) => {
 // =========================================================
 exports.authorize = (...roles) => {
   return (req, res, next) => {
-    // ✅ FIXED: Normalize both user role and allowed roles to lowercase for comparison
-    // This makes the check robust (e.g., "Student" matches "student")
+    // 🛡️ CRITICAL FIX: Ensure req.user exists before checking role
+    // This prevents server crashes if 'protect' was forgotten in the route chain
+    if (!req.user) {
+        return res.status(401).json({ message: "Not authorized. User context missing." });
+    }
+
     const userRole = req.user.role.toLowerCase();
     const allowedRoles = roles.map(r => r.toLowerCase());
 

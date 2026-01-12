@@ -16,8 +16,7 @@ const courseOfferingSchema = new mongoose.Schema({
   },
 
   // 3️⃣ WHEN IS IT HAPPENING?
-  // Note: While 'required' is false for flexibility, this field is crucial 
-  // for the unique index below to work across different terms.
+  // Crucial for the unique index to distinguish between semesters (e.g. Fall vs Spring)
   semesterId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Semester", 
@@ -39,14 +38,22 @@ const courseOfferingSchema = new mongoose.Schema({
   capacity: {
     type: Number,
     default: 60
+  },
+
+  // ✅ ATOMIC COUNTER: Prevents enrollment race conditions
+  currentEnrollment: {
+    type: Number,
+    default: 0
   }
 
 }, { timestamps: true });
 
-// 🛡️ DATA INTEGRITY FIX
-// We must include 'semesterId' in the unique index. 
-// This allows "Physics Sec A" to exist in Fall 2024 AND Spring 2025 independently.
-// Without 'semesterId', the database would block the second offering.
+// 🛡️ INDEX 1: Prevent duplicate sections 
+// (e.g., You cannot have two "Section A"s for Physics in the same semester)
 courseOfferingSchema.index({ courseId: 1, section: 1, semesterId: 1 }, { unique: true });
+
+// 🛡️ INDEX 2: Prevent Race Condition in Faculty Assignment
+// (e.g., You cannot assign the same Faculty to the same Course in the same Semester twice)
+courseOfferingSchema.index({ facultyId: 1, courseId: 1, semesterId: 1 }, { unique: true });
 
 module.exports = mongoose.model("CourseOffering", courseOfferingSchema);
