@@ -1,34 +1,36 @@
 const express = require("express");
 const router = express.Router();
 
-// 1. Import Middleware
-// We use 'authorize' to strictly allow only 'admin' role
-const { protect, authorize } = require("../middleware/authMiddleware"); 
+// 1. Import Middleware (Security)
+const { protect, authorize } = require("../middleware/authMiddleware");
 
-// 2. Import Controller
-const adminController = require("../controllers/adminController");
+// 2. Import Controller Functions
+const { 
+  addUser, 
+  addDepartment, 
+  addCourse, 
+  assignFaculty,
+  broadcastNotice 
+} = require("../controllers/adminController");
 
-// 3. Apply Middleware Globally
-// All routes below require the user to be logged in AND have the role 'admin'
-router.use(protect);
-router.use(authorize("admin", "Admin")); 
+// ==========================================
+// 🛡️ SECURITY: All Admin Routes are Protected
+// ==========================================
 
-// 4. Define Routes
-
-// POST /api/admin/add-user
-// Creates a new Student or Faculty
-router.post("/add-user", adminController.addUser);
+// POST /api/admin/add-user (Student/Faculty)
+router.post("/add-user", protect, authorize("admin"), addUser);
 
 // POST /api/admin/add-department
-// Adds a new Department (e.g., CSE, ECE)
-router.post("/add-department", adminController.addDepartment);
+router.post("/add-department", protect, authorize("admin"), addDepartment);
 
 // POST /api/admin/add-course
-// Adds a new Subject/Course
-router.post("/add-course", adminController.addCourse);
+router.post("/add-course", protect, authorize("admin"), addCourse);
 
 // POST /api/admin/assign-faculty
-// Assigns a teacher to a specific subject
-router.post("/assign-faculty", adminController.assignFaculty);
+router.post("/assign-faculty", protect, authorize("admin"), assignFaculty);
+
+// 🚀 LEVEL 4: Broadcast Alert Route
+// 🔒 SECURE: Only Admins can access this now
+router.post("/broadcast", protect, authorize("admin"), broadcastNotice);
 
 module.exports = router;

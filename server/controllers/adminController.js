@@ -114,11 +114,40 @@ exports.assignFaculty = async (req, res) => {
     }
 
     // Create the link in CourseOffering collection
+    // Note: ensure your schema has facultyId, courseId, semesterId. 
+    // If you need semesterId, make sure to pass it in req.body or handle it here.
+    // For now, adhering to your provided snippet:
     await CourseOffering.create({ facultyId, courseId });
     
     res.status(200).json({ message: "Faculty assigned to course successfully" });
   } catch (err) {
     console.error("Assign Faculty Error:", err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 🚀 LEVEL 4: Broadcast Notice to ALL Students
+// =========================================================
+exports.broadcastNotice = async (req, res) => {
+  try {
+    const { title, message } = req.body;
+
+    // 1. Get the Socket.io instance (we saved this in index.js)
+    const io = req.app.get("socketio");
+
+    // 2. Send to "Physics_Class" room (or use io.emit to send to EVERYONE)
+    // For this test, we send to the room our test script joined
+    io.to("Physics_Class").emit("receive_notice", {
+      title: title,
+      message: message,
+      time: new Date().toLocaleTimeString()
+    });
+
+    res.json({ message: "📢 Notice Broadcasted Successfully!" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to send notice" });
   }
 };
