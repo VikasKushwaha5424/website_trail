@@ -21,19 +21,22 @@ const studentProfileSchema = new mongoose.Schema({
   departmentId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Department", 
-    required: true 
+    // ⚠️ FIX: Removed 'required: true' to allow 'null' during initial registration
+    default: null 
   },
 
-  // 3️⃣ PERSONAL DETAILS (Missing in your old file!)
+  // 3️⃣ PERSONAL DETAILS
   firstName: { 
     type: String, 
     required: true, 
     trim: true 
   },
+  
+  // ⚠️ FIX: Made lastName optional for students with single names
   lastName: { 
     type: String, 
-    required: true, 
-    trim: true 
+    trim: true,
+    default: "" 
   },
   
   // 4️⃣ ACADEMIC STATUS
@@ -47,14 +50,13 @@ const studentProfileSchema = new mongoose.Schema({
   batchYear: { 
     type: Number, 
     required: true 
-  }, // e.g., 2025 (The year they joined)
+  }, // e.g., 2025
 
   // 5️⃣ LEVEL-2 ENHANCEMENTS
   guardianDetails: {
     name: { type: String, default: null },
     phone: { type: String, default: null }
   },
-  // Crucial for "Emergency Contact" features in an ERP
 
   currentStatus: {
     type: String,
@@ -65,9 +67,7 @@ const studentProfileSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // 🔎 PERFORMANCE INDEXES
-// Fast lookup for: "Find Student by Name"
 studentProfileSchema.index({ firstName: 1, lastName: 1 });
-// Fast lookup for: "Find all students in CSE Department"
 studentProfileSchema.index({ departmentId: 1 });
 
 module.exports = mongoose.model("StudentProfile", studentProfileSchema);

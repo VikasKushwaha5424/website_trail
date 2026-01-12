@@ -17,8 +17,6 @@ exports.registerUser = async (req, res) => {
   let user = null; 
 
   try {
-    // 🔒 SECURITY: We extract only specific fields. 
-    // We intentionally DO NOT extract 'role' from req.body to prevent privilege escalation.
     const { name, email, password, rollNumber } = req.body;
 
     // 2. Check if Email Exists
@@ -27,7 +25,7 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ message: "User already exists with this email" });
     }
 
-    // 3. ✅ FIX: Check if Roll Number Exists
+    // 3. Check if Roll Number Exists
     if (rollNumber) {
         const rollExists = await User.findOne({ rollNumber });
         if (rollExists) {
@@ -40,13 +38,10 @@ exports.registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // 5. Create the Base User Account
-    // Assign to the variable declared outside
     user = await User.create({
       name,
       email,
       passwordHash: hashedPassword,
-      // 🔒 SECURITY FORCE: Public registration is RESTRICTED to students only.
-      // To create Faculty/Admins, use 'adminController.addUser' which requires admin token.
       role: "student", 
       rollNumber,
       isActive: true
@@ -56,25 +51,25 @@ exports.registerUser = async (req, res) => {
       // 6. Create StudentProfile immediately
       const nameParts = name.trim().split(" ");
       const firstName = nameParts[0];
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ".";
+      
+      // ✅ FIX: Use empty string "" instead of "." for cleaner data
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
       await StudentProfile.create({
         userId: user._id,
         firstName: firstName,
         lastName: lastName,
         rollNumber: rollNumber,
-        departmentId: null, // Pending assignment (Admin can update later)
-        batchYear: new Date().getFullYear(), // Default to current year
+        departmentId: null, // Pending assignment
+        batchYear: new Date().getFullYear(),
         currentStatus: "ACTIVE"
       });
 
       // 7. Send Welcome Email
-      // Note: If email fails, the catch block will trigger rollback.
       try {
         await sendEmail(email, "Welcome! 🎓", `<h1>Hello ${name}, welcome to the portal.</h1>`);
       } catch (emailErr) {
         console.error("Warning: Failed to send welcome email:", emailErr.message);
-        // We do NOT rollback user creation just because email failed
       }
 
       // 8. Return Token

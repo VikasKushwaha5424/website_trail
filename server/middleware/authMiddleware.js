@@ -53,10 +53,11 @@ exports.protect = async (req, res, next) => {
 exports.facultyOnly = (req, res, next) => {
   const allowedRoles = ['faculty', 'FACULTY', 'admin', 'ADMIN'];
   
-  // Safety check for req.user
+  // Safety check: Ensure req.user exists before checking role
   if (req.user && allowedRoles.includes(req.user.role)) {
     next();
   } else {
+    // If req.user is missing OR role is wrong, deny access
     res.status(403).json({ 
       message: `Access denied. Faculty role required.` 
     });
@@ -68,8 +69,8 @@ exports.facultyOnly = (req, res, next) => {
 // =========================================================
 exports.authorize = (...roles) => {
   return (req, res, next) => {
-    // 🛡️ CRITICAL FIX: Ensure req.user exists before checking role
-    // This prevents server crashes if 'protect' was forgotten in the route chain
+    // 🛡️ SECURITY SAFETY CHECK
+    // This ensures the server doesn't crash if 'protect' was forgotten.
     if (!req.user) {
         return res.status(401).json({ message: "Not authorized. User context missing." });
     }

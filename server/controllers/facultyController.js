@@ -40,12 +40,27 @@ exports.getAssignedCourses = async (req, res) => {
 // =========================================================
 exports.getStudentsForCourse = async (req, res) => {
   try {
-    // Note: Ensure your route is defined as /course/:offeringId/students
     const { offeringId } = req.params;
-    
-    const offering = await CourseOffering.findById(offeringId);
-    if (!offering) return res.status(404).json({ message: "Course offering not found" });
+    const userId = req.user.id; // Logged in User ID
 
+    // 1. Get Faculty Profile
+    const facultyProfile = await FacultyProfile.findOne({ userId });
+    if (!facultyProfile) {
+        return res.status(403).json({ message: "Access denied. Faculty profile not found." });
+    }
+    
+    // 2. 🛡️ SECURITY CHECK: Verify this faculty OWNS this course offering
+    // (This prevents Faculty A from peeking at Faculty B's student list)
+    const offering = await CourseOffering.findOne({ 
+        _id: offeringId, 
+        facultyId: facultyProfile._id 
+    });
+
+    if (!offering) {
+        return res.status(403).json({ message: "Access Denied: You are not teaching this course." });
+    }
+
+    // 3. Fetch Students if authorized
     const enrollments = await Enrollment.find({ courseOfferingId: offeringId })
       .populate({
         path: "studentId",
@@ -76,13 +91,13 @@ exports.markAttendance = async (req, res) => {
     const { offeringId, date, students } = req.body; 
     const userId = req.user.id;
 
-    // 🔒 1. Get the Faculty Profile of the logged-in user
+    // 1. Get the Faculty Profile
     const facultyProfile = await FacultyProfile.findOne({ userId });
     if (!facultyProfile) {
         return res.status(403).json({ message: "Access denied. Faculty profile not found." });
     }
 
-    // 🔒 2. SECURITY CHECK: Verify this faculty owns this course offering
+    // 2. SECURITY CHECK: Verify ownership
     const offering = await CourseOffering.findOne({ 
         _id: offeringId, 
         facultyId: facultyProfile._id 
@@ -92,22 +107,22 @@ exports.markAttendance = async (req, res) => {
         return res.status(403).json({ message: "Security Warning: You are not authorized to mark attendance for this course." });
     }
 
-    // 🛠️ FIX 1: Force date to midnight UTC to ensure uniqueness works
-    // This prevents "9:00 AM" and "10:00 AM" from counting as different days
+    // 3. Force date to midnight UTC (Fixes Timezone duplication bugs)
+    // This ensures "9:00 AM" and "10:00 AM" are treated as the same "Day"
     const cleanDate = new Date(date);
     cleanDate.setUTCHours(0, 0, 0, 0); 
     
-    // 3. Proceed to Save Attendance
+    // 4. Save Attendance
     await Promise.all(students.map(async (record) => {
       return Attendance.findOneAndUpdate(
         { 
           studentId: record.studentId, 
           courseOfferingId: offeringId, 
-          date: cleanDate // 👈 Use clean date
+          date: cleanDate 
         }, 
         { 
           status: record.status,
-          markedBy: userId // 👈 FIX 2: Audit Logic (Track who marked it)
+          markedBy: userId // Audit: Track who marked it
         }, 
         { upsert: true, new: true } 
       );
@@ -133,7 +148,7 @@ exports.updateMarks = async (req, res) => {
         return res.status(400).json({ error: "Marks obtained cannot exceed Max Marks" });
     }
 
-    // 🔒 2. SECURITY CHECK: Verify Faculty Ownership
+    // 2. SECURITY CHECK: Verify Faculty Ownership
     const facultyProfile = await FacultyProfile.findOne({ userId });
     if (!facultyProfile) {
         return res.status(403).json({ message: "Access denied. Faculty profile not found." });

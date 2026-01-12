@@ -9,7 +9,9 @@ const {
   addUser, 
   addDepartment, 
   addCourse, 
+  createSemester,  // 👈 Added this
   assignFaculty,
+  enrollStudent,   // 👈 Added this
   broadcastNotice 
 } = require("../controllers/adminController");
 
@@ -26,11 +28,16 @@ router.post("/add-department", protect, authorize("admin"), addDepartment);
 // POST /api/admin/add-course
 router.post("/add-course", protect, authorize("admin"), addCourse);
 
+// POST /api/admin/create-semester (Active/Inactive logic)
+router.post("/create-semester", protect, authorize("admin"), createSemester); // 👈 New Route
+
 // POST /api/admin/assign-faculty
 router.post("/assign-faculty", protect, authorize("admin"), assignFaculty);
 
-// 🚀 LEVEL 4: Broadcast Alert Route
-// 🔒 SECURE: Only Admins can access this now
+// POST /api/admin/enroll-student (Manual Enrollment)
+router.post("/enroll-student", protect, authorize("admin"), enrollStudent);   // 👈 New Route
+
+// POST /api/admin/broadcast (Alerts)
 router.post("/broadcast", protect, authorize("admin"), broadcastNotice);
 
 module.exports = router;

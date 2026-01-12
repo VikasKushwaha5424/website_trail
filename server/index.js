@@ -69,18 +69,27 @@ app.use(limiter);
 app.use(mongoSanitize());
 
 // E. XSS Protection (Modern Replacement)
-// Helper function to recursively sanitize objects
-const sanitizeData = (data) => {
+// Helper function to recursively sanitize objects, skipping sensitive keys
+const sanitizeData = (data, keysToSkip = []) => {
     if (!data) return data;
+    
+    // Sanitize Strings
     if (typeof data === 'string') {
-        return xss(data); // Sanitize string
+        return xss(data); 
     }
+    
+    // Recursively Sanitize Arrays
     if (Array.isArray(data)) {
-        return data.map(item => sanitizeData(item));
+        return data.map(item => sanitizeData(item, keysToSkip));
     }
+    
+    // Recursively Sanitize Objects
     if (typeof data === 'object') {
         Object.keys(data).forEach(key => {
-            data[key] = sanitizeData(data[key]);
+            // Only sanitize if the key is NOT in the skip list
+            if (!keysToSkip.includes(key)) {
+                data[key] = sanitizeData(data[key], keysToSkip);
+            }
         });
     }
     return data;
@@ -88,7 +97,8 @@ const sanitizeData = (data) => {
 
 // Middleware to sanitize body, query, and params
 app.use((req, res, next) => {
-    if (req.body) req.body = sanitizeData(req.body);
+    // 🛡️ CRITICAL FIX: Skip 'password' fields so they don't get corrupted before hashing
+    if (req.body) req.body = sanitizeData(req.body, ['password', 'passwordHash', 'confirmPassword']);
     if (req.query) req.query = sanitizeData(req.query);
     if (req.params) req.params = sanitizeData(req.params);
     next();
@@ -126,15 +136,22 @@ app.use((err, req, res, next) => {
 });
 
 // ==========================================
-// 🚀 REAL-TIME SERVER
+// 🚀 REAL-TIME SERVER (Updated for Deployment)
 // ==========================================
 
 const server = http.createServer(app);
 
+// Define allowed origins (Local + Production)
+const allowedOrigins = [
+  "http://localhost:3000",          // Local React
+  process.env.CLIENT_URL            // Production React (e.g., https://my-app.vercel.app)
+].filter(Boolean);                  // Remove undefined values if env is missing
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true               // Required for cookies/sessions
   }
 });
 
@@ -146,9 +163,9 @@ io.on("connection", (socket) => {
     console.log(`User ${socket.id} joined room: ${room}`);
     
     io.to(room).emit("receive_notice", {
-      title: "Connection Established",
-      message: `Welcome to the ${room} channel!`,
-      time: new Date().toLocaleTimeString()
+        title: "Connection Established",
+        message: `Welcome to the ${room} channel!`,
+        time: new Date().toLocaleTimeString()
     });
   });
 
@@ -162,4 +179,5 @@ app.set("socketio", io);
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Mythic Server (SECURE + FAST) running on port ${PORT}`);
+  console.log(`📡 Socket.io allowed origins:`, allowedOrigins); 
 });

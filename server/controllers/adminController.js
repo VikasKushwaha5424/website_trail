@@ -7,20 +7,23 @@ const Department = require("../models/Department");
 const CourseOffering = require("../models/CourseOffering");
 const Semester = require("../models/Semester");
 const Enrollment = require("../models/Enrollment"); 
+const sendEmail = require("../utils/emailService");
 
 // =========================================================
-// 1. ADD USER (Student or Faculty)
+// 1. ADD USER (Robust: Handles Student/Faculty + Rollback)
 // =========================================================
 exports.addUser = async (req, res) => {
+  let user = null; // Declare outside 'try' for rollback scope
+
   try {
     const { 
       name, email, password, role, 
-      rollNumber, batch, qualification 
+      rollNumber, batchYear, qualification, designation 
     } = req.body;
     
     let { departmentId } = req.body;
 
-    // 1. Validate Department
+    // 1. Validate Department (Helper to convert Code -> ID if needed)
     if (departmentId && !departmentId.match(/^[0-9a-fA-F]{24}$/)) {
         const dept = await Department.findOne({ code: departmentId }); 
         if (!dept) {
@@ -29,55 +32,83 @@ exports.addUser = async (req, res) => {
         departmentId = dept._id;
     }
 
-    // 2. Hash Password
+    // 2. Check if user exists
+    let userExists = await User.findOne({ email });
+    if (userExists) return res.status(400).json({ message: "User already exists with this email" });
+
+    // 3. Hash Password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 3. Create Base User
-    const newUser = await User.create({
+    // 4. Create Base User (Point of No Return)
+    user = await User.create({
       name, 
       email, 
       passwordHash: hashedPassword, 
       role, // "student", "faculty", "admin"
-      rollNumber,
+      rollNumber: rollNumber || undefined,
       isActive: true
     });
 
-    // 4. Create Specific Profile based on Role (With Rollback)
+    // 5. Create Specific Profile based on Role
+    // ⚠️ CRITICAL: If this fails, we catch it and delete the 'user'
     try {
       if (role.toLowerCase() === "student") {
         
         const nameParts = name.trim().split(" ");
         const firstName = nameParts[0];
-        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ".";
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
         await StudentProfile.create({
-          userId: newUser._id,
-          departmentId, 
-          rollNumber, 
+          userId: user._id,
+          departmentId: departmentId || null, // Can be null initially
+          rollNumber: rollNumber || "TEMP-" + Date.now(), 
           firstName,      
           lastName,       
-          batchYear: batch 
+          batchYear: batchYear || new Date().getFullYear(),
+          currentStatus: "ACTIVE"
         });
 
       } else if (role.toLowerCase() === "faculty") {
+        if (!departmentId) {
+             throw new Error("Department ID is required for Faculty");
+        }
         await FacultyProfile.create({
-          userId: newUser._id,
+          userId: user._id,
           departmentId,
-          qualification
+          qualification,
+          designation: designation || "Assistant Professor"
         });
       }
     } catch (profileError) {
-      // 🛑 ROLLBACK: Delete the user if profile creation fails
-      console.error("Profile creation failed, rolling back user:", profileError.message);
-      await User.findByIdAndDelete(newUser._id);
-      throw new Error(`Failed to create profile: ${profileError.message}`);
+      throw profileError; // Throw to the main catch block to trigger rollback
     }
 
-    res.status(201).json({ message: "User created successfully", user: newUser });
+    // 6. Send Credentials via Email
+    try {
+        await sendEmail(email, "Account Created", `
+            <h1>Welcome to the Portal</h1>
+            <p>Your account has been created by the administrator.</p>
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Password:</strong> ${password}</p>
+            <p>Please login and change your password immediately.</p>
+        `);
+    } catch (emailErr) {
+        console.error("Warning: Failed to send credential email:", emailErr.message);
+    }
+
+    res.status(201).json({ message: "User created successfully", user });
+
   } catch (err) {
     console.error("Add User Error:", err);
-    res.status(500).json({ error: err.message });
+
+    // 🛑 ROLLBACK: Delete the user if profile creation failed
+    if (user && user._id) {
+        console.log(`Rolling back creation for user: ${user._id}`);
+        await User.findByIdAndDelete(user._id);
+    }
+
+    res.status(500).json({ error: err.message || "Failed to add user" });
   }
 };
 
@@ -86,7 +117,8 @@ exports.addUser = async (req, res) => {
 // =========================================================
 exports.addDepartment = async (req, res) => {
   try {
-    const dept = await Department.create(req.body);
+    const { name, code } = req.body;
+    const dept = await Department.create({ name, code });
     res.status(201).json(dept);
   } catch (err) {
     console.error("Add Dept Error:", err);
@@ -99,7 +131,8 @@ exports.addDepartment = async (req, res) => {
 // =========================================================
 exports.addCourse = async (req, res) => {
   try {
-    const course = await Course.create(req.body);
+    const { name, code, credits, departmentId } = req.body;
+    const course = await Course.create({ name, code, credits, departmentId });
     res.status(201).json(course);
   } catch (err) {
     console.error("Add Course Error:", err);
@@ -108,34 +141,56 @@ exports.addCourse = async (req, res) => {
 };
 
 // =========================================================
-// 4. ASSIGN FACULTY TO COURSE (Race-Condition Free)
+// 4. CREATE SEMESTER (Handles "Single Active" Rule)
+// =========================================================
+exports.createSemester = async (req, res) => {
+  try {
+    const { name, code, academicYear, startDate, endDate, isActive } = req.body;
+
+    // Validate Dates
+    if (new Date(startDate) >= new Date(endDate)) {
+        return res.status(400).json({ error: "Start Date must be before End Date" });
+    }
+
+    // If this new semester is set to ACTIVE, deactivate ALL others first
+    if (isActive === true) {
+        await Semester.updateMany({}, { isActive: false });
+    }
+
+    const semester = await Semester.create({
+        name, code, academicYear, startDate, endDate, isActive
+    });
+
+    res.status(201).json({ message: "Semester Created Successfully", semester });
+
+  } catch (err) {
+    console.error("Create Semester Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 5. ASSIGN FACULTY TO COURSE (Race-Condition Free)
 // =========================================================
 exports.assignFaculty = async (req, res) => {
   try {
-    // 1. Accept semesterId optionally
     const { facultyId, courseId, semesterId } = req.body;
     
     let targetSemesterId = semesterId;
 
-    // 2. If no ID provided, find the system's current active semester safely
+    // If no ID provided, find the system's current active semester
     if (!targetSemesterId) {
         const activeSemesters = await Semester.find({ isActive: true });
 
         if (activeSemesters.length === 0) {
             return res.status(400).json({ error: "No Active Semester found. Please create one first." });
         }
-
-        if (activeSemesters.length > 1) {
-            return res.status(500).json({ 
-                error: "System Error: Multiple Active Semesters detected. Please specify 'semesterId' explicitly." 
-            });
-        }
-
+        // If multiple active (edge case), pick the first one
         targetSemesterId = activeSemesters[0]._id;
     }
 
-    // 3. Create the assignment directly
-    // We rely on the MongoDB Unique Index to catch duplicates/race conditions.
+    // Create the assignment
+    // (Ensure you have a unique compound index on { facultyId, courseId, semesterId } in your Model)
     await CourseOffering.create({ 
         facultyId, 
         courseId,
@@ -145,60 +200,50 @@ exports.assignFaculty = async (req, res) => {
     res.status(200).json({ message: "Faculty assigned to course successfully" });
 
   } catch (err) {
-    // 🛡️ RACE CONDITION HANDLER
-    // If the unique index we added violates ({ facultyId, courseId, semesterId }),
-    // MongoDB throws error code 11000.
+    // 🛡️ RACE CONDITION HANDLER (Duplicate Entry)
     if (err.code === 11000) {
         return res.status(400).json({ 
             message: "Faculty is already assigned to this course for the selected semester." 
         });
     }
-
     console.error("Assign Faculty Error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
 // =========================================================
-// 5. ENROLL STUDENT IN A COURSE (Race-Condition Free)
+// 6. ENROLL STUDENT IN A COURSE (Atomic & Safe)
 // =========================================================
 exports.enrollStudent = async (req, res) => {
   try {
     const { studentId, courseOfferingId } = req.body;
 
-    // 1. Initial Check: Ensure Course Exists & Prevent Duplicate Enrollment first
-    // (This saves us from incrementing the counter if the student is already in the class)
+    // 1. Prevent Duplicate Enrollment
     const existingEnrollment = await Enrollment.findOne({ studentId, courseOfferingId });
     if (existingEnrollment) {
       return res.status(400).json({ message: "Student is already enrolled in this class." });
     }
 
     // 2. ATOMIC CAPACITY CHECK & RESERVATION
-    // We try to find the course AND increment 'currentEnrollment' in one go.
-    // The query conditions ({ $expr: ... }) ensure we only update if there is space.
+    // Only update if currentEnrollment < capacity
     const offering = await CourseOffering.findOneAndUpdate(
       { 
         _id: courseOfferingId, 
-        $expr: { $lt: ["$currentEnrollment", "$capacity"] } // Only match if current < capacity
+        $expr: { $lt: ["$currentEnrollment", "$capacity"] } 
       },
-      { 
-        $inc: { currentEnrollment: 1 } // Reserve the spot
-      },
-      { new: true } // Return the updated document
+      { $inc: { currentEnrollment: 1 } },
+      { new: true }
     );
 
-    // If 'offering' is null, it means either the ID is wrong OR the capacity condition failed.
     if (!offering) {
-        // Let's verify if the course actually exists to give a better error message
+        // Double check if course exists to give better error
         const checkExists = await CourseOffering.findById(courseOfferingId);
-        if (!checkExists) {
-            return res.status(404).json({ message: "Course Offering not found" });
-        }
+        if (!checkExists) return res.status(404).json({ message: "Course Offering not found" });
+        
         return res.status(400).json({ message: `Enrollment Failed: Class is Full (Capacity: ${checkExists.capacity})` });
     }
 
     // 3. Create Enrollment Record
-    // Since we reserved a spot, we now insert the student record.
     try {
         const enrollment = await Enrollment.create({
           studentId,
@@ -209,21 +254,14 @@ exports.enrollStudent = async (req, res) => {
         res.status(201).json({ message: "Student Enrolled Successfully", enrollment });
 
     } catch (enrollError) {
-        // 🛑 ROLLBACK STRATEGY
-        // If creating the enrollment fails (e.g., DB connection issue or race condition on unique index),
-        // we MUST release the spot we just reserved.
+        // 🛑 ROLLBACK: Release the reserved spot if insert fails
         console.error("Enrollment creation failed. Rolling back capacity...", enrollError);
+        await CourseOffering.findByIdAndUpdate(courseOfferingId, { $inc: { currentEnrollment: -1 } });
         
-        await CourseOffering.findByIdAndUpdate(courseOfferingId, { 
-            $inc: { currentEnrollment: -1 } 
-        });
-
-        // Handle specific "Duplicate Key" error just in case our initial check missed a race
         if (enrollError.code === 11000) {
             return res.status(400).json({ message: "Student is already enrolled in this class." });
         }
-
-        throw enrollError; // Pass other errors to the main catch block
+        throw enrollError;
     }
 
   } catch (err) {
@@ -233,34 +271,31 @@ exports.enrollStudent = async (req, res) => {
 };
 
 // =========================================================
-// 6. Broadcast Notice (Global OR Targeted)
+// 7. BROADCAST NOTICE (Targeted & Global)
 // =========================================================
 exports.broadcastNotice = async (req, res) => {
   try {
-    // Extract 'target' from the request (e.g., "CSE-Semester-1" or "ALL")
+    // Extract 'target' (e.g., "CSE-Semester-1" or "ALL")
     const { title, message, target } = req.body;
 
     const io = req.app.get("socketio");
+    if (!io) return res.status(500).json({ message: "Socket.io not initialized" });
 
-    // Check if a specific target room is provided
+    // Build the payload
+    const payload = {
+        title,
+        message,
+        time: new Date().toLocaleTimeString()
+    };
+
     if (target && target !== "ALL") {
-        // 🎯 OPTION 1: Send to Specific Class/Room only
-        io.to(target).emit("receive_notice", {
-            title: title,
-            message: message,
-            target: target, // Optional: Let client know it was targeted
-            time: new Date().toLocaleTimeString()
-        });
+        // 🎯 Send to Specific Room
+        io.to(target).emit("receive_notice", { ...payload, target });
         console.log(`📢 Notice sent to room: ${target}`);
     } else {
-        // 🌍 OPTION 2: Send to EVERYONE (Global Broadcast)
-        io.emit("receive_notice", {
-            title: title,
-            message: message,
-            target: "ALL",
-            time: new Date().toLocaleTimeString()
-        });
-        console.log(`📢 Global notice sent to all users`);
+        // 🌍 Send to Global
+        io.emit("receive_notice", { ...payload, target: "ALL" });
+        console.log(`📢 Global notice sent`);
     }
 
     res.json({ message: "📢 Notice Broadcasted Successfully!" });
@@ -268,41 +303,5 @@ exports.broadcastNotice = async (req, res) => {
   } catch (err) {
     console.error("Broadcast Error:", err);
     res.status(500).json({ error: "Failed to send notice" });
-  }
-};
-
-// =========================================================
-// 7. CREATE SEMESTER (Handles "Single Active" Rule + Validation)
-// =========================================================
-exports.createSemester = async (req, res) => {
-  try {
-    const { name, code, academicYear, startDate, endDate, isActive } = req.body;
-
-    // ✅ FIX: Validate Dates
-    // Ensure Start Date is physically before End Date to prevent logical errors
-    if (new Date(startDate) >= new Date(endDate)) {
-        return res.status(400).json({ error: "Start Date must be before End Date" });
-    }
-
-    // 1. If this new semester is set to ACTIVE, deactivate ALL others first
-    if (isActive === true) {
-        await Semester.updateMany({}, { isActive: false });
-    }
-
-    // 2. Create the new Semester
-    const semester = await Semester.create({
-        name,
-        code,
-        academicYear,
-        startDate,
-        endDate,
-        isActive // If true, it is now the ONLY active one
-    });
-
-    res.status(201).json({ message: "Semester Created Successfully", semester });
-
-  } catch (err) {
-    console.error("Create Semester Error:", err);
-    res.status(500).json({ error: err.message });
   }
 };
