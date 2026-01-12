@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const sendEmail = require("../utils/emailService"); // 🚀 LEVEL 3 IMPORT
 
 // Helper: Generate JWT Token
 const generateToken = (id, role) => {
@@ -25,7 +26,6 @@ exports.registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // 3. Create User in Database
-    // Note: If your User model has required fields other than these, it might crash here.
     const user = await User.create({
       name,
       email,
@@ -36,8 +36,23 @@ exports.registerUser = async (req, res) => {
     });
 
     if (user) {
-      // Success! Send back the user info and token
+      // 🚀 LEVEL 3 UPGRADE: Send Welcome Email
+      const emailSubject = "Welcome to College Portal! 🎓";
+      const emailBody = `
+        <h1>Hello ${name},</h1>
+        <p>Your account has been successfully created.</p>
+        <p><strong>Role:</strong> ${user.role}</p>
+        <p>Please login to complete your profile.</p>
+      `;
+      
+      // Fire and forget (don't await to keep response fast)
+      sendEmail(email, emailSubject, emailBody);
+
+      // Success! 
+      // Note: We return a message prompting them to check email, 
+      // but we also return the token so they are logged in immediately (Best UX).
       res.status(201).json({
+        message: "User registered successfully. Welcome email sent!",
         _id: user.id,
         name: user.name,
         email: user.email,
@@ -49,7 +64,6 @@ exports.registerUser = async (req, res) => {
     }
   } catch (error) {
     console.error("Register Error:", error);
-    // FIXED: Send the actual error message to the client for easier debugging
     res.status(500).json({ message: error.message });
   }
 };

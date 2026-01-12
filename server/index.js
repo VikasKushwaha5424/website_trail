@@ -7,9 +7,14 @@ const connectDB = require("./config/db");
 const authRoute = require("./routes/authRoutes"); 
 const facultyRoute = require("./routes/faculty"); 
 const adminRoute = require("./routes/admin"); 
-const studentRoute = require("./routes/studentRoutes"); // FIXED: Filename was studentRoutes.js
+const studentRoute = require("./routes/studentRoutes"); 
 const userRoute = require("./routes/userRoutes"); 
-const courseRoute = require("./routes/courseRoutes"); 
+const courseRoute = require("./routes/courseRoutes");
+
+// --- LEVEL 2 ROUTES ---
+const feeRoute = require("./routes/feeRoutes");
+const timetableRoute = require("./routes/timetableRoutes");
+const hostelRoute = require("./routes/hostelRoutes");
 
 // 2. Load Environment Variables
 dotenv.config();
@@ -23,11 +28,17 @@ connectDB();
 require("./models/User");
 require("./models/Department");
 require("./models/Course");
-require("./models/StudentProfile"); // FIXED: Filename is StudentProfile.js
+require("./models/StudentProfile"); 
 require("./models/FacultyProfile");
-require("./models/CourseOffering"); // FIXED: Replaced FacultyCourse with CourseOffering
+require("./models/CourseOffering"); 
 require("./models/Enrollment");
 require("./models/Attendance");
+require("./models/Marks");
+
+// --- LEVEL 2 MODELS ---
+require("./models/Fee"); 
+require("./models/Timetable");
+require("./models/Hostel");
 // ----------------------------------------------------
 
 // 5. Initialize Express
@@ -45,6 +56,10 @@ app.use("/api/student", studentRoute);
 app.use("/api/users", userRoute);   
 app.use("/api/courses", courseRoute); 
 
+// --- LEVEL 2 API ENDPOINTS ---
+app.use("/api/fees", feeRoute);
+app.use("/api/timetable", timetableRoute);
+app.use("/api/hostel", hostelRoute);
 
 // 8. Basic Test Route
 app.get("/", (req, res) => {

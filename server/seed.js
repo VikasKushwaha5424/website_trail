@@ -1,19 +1,26 @@
-/* 🚀 LEVEL-2 SEED SCRIPT
+/* 🚀 ROBUST SEED SCRIPT (Level-2 Compatible)
   Run with: node seed.js
+  
+  This script wipes the DB and populates it with:
+  - 1 Admin, 1 Faculty, 1 Student
+  - 2 Departments (CSE, MECH)
+  - 1 Active Semester
+  - Courses, Offerings, Enrollments
+  - Attendance, Marks, and Announcements
 */
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-// 📦 Import ALL your new models
+// 📦 Import ALL Models
 const User = require('./models/User');
 const Department = require('./models/Department');
-const Course = require('./models/Course');
-const Semester = require('./models/Semester');
-const FacultyProfile = require('./models/FacultyProfile');
 const StudentProfile = require('./models/StudentProfile');
+const FacultyProfile = require('./models/FacultyProfile');
+const Course = require('./models/Course');
 const CourseOffering = require('./models/CourseOffering');
+const Semester = require('./models/Semester');
 const Enrollment = require('./models/Enrollment');
 const Attendance = require('./models/Attendance');
 const Marks = require('./models/Marks');
@@ -22,10 +29,10 @@ const Announcement = require('./models/Announcement');
 // 🔌 Database Connection
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/college_portal');
-    console.log('✅ MongoDB Connected');
+    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/college_portal');
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (err) {
-    console.error('❌ Database Connection Failed', err);
+    console.error('❌ Database Connection Failed:', err);
     process.exit(1);
   }
 };
@@ -34,6 +41,7 @@ const seedData = async () => {
   await connectDB();
 
   console.log('🧹 Clearing Database...');
+  // This prevents "Duplicate Key" errors by starting fresh
   await mongoose.connection.db.dropDatabase();
 
   try {
@@ -42,56 +50,70 @@ const seedData = async () => {
     // ============================================
     
     // Create Departments
-    const deptCSE = await Department.create({ name: 'Computer Science', code: 'CSE' });
-    const deptMECH = await Department.create({ name: 'Mechanical Eng.', code: 'MECH' });
+    const deptCSE = await Department.create({ 
+        name: 'Computer Science & Engineering', 
+        code: 'CSE',
+        isActive: true
+    });
+    
+    const deptMECH = await Department.create({ 
+        name: 'Mechanical Engineering', 
+        code: 'MECH',
+        isActive: true
+    });
     console.log('🏢 Departments Created');
 
-    // Create Semester (The "Time" Context)
+    // Create Semester
     const currentSemester = await Semester.create({
       name: 'Fall 2025',
       code: '2025-FALL',
       academicYear: '2025-2026',
       startDate: new Date('2025-08-01'),
-      endDate: new Date('2025-12-15')
+      endDate: new Date('2025-12-15'),
+      isActive: true
     });
     console.log('📅 Semester Created');
 
     // ============================================
-    // 2️⃣ AUTHENTICATION (Users)
+    // 2️⃣ USERS (Auth Layer)
     // ============================================
     
     const passwordHash = await bcrypt.hash('password123', 10);
 
-    // Admin User
+    // A. Admin User
     const adminUser = await User.create({
-      username: 'ADMIN01',
+      name: "Super Admin",
       email: 'admin@college.edu',
       passwordHash,
-      role: 'ADMIN'
+      role: 'admin',
+      rollNumber: "ADM001" // Optional but good for consistency
     });
 
-    // Faculty User (Prof. Smith)
+    // B. Faculty User
     const facultyUser = await User.create({
-      username: 'FAC001',
+      name: "Dr. John Smith",
       email: 'smith@college.edu',
       passwordHash,
-      role: 'FACULTY'
+      role: 'faculty',
+      rollNumber: "FAC001"
     });
 
-    // Student User (Vikas)
+    // C. Student User
     const studentUser = await User.create({
-      username: 'CSE2025001', // Roll Number as Username
-      email: 'vikas@student.edu',
+      name: "Rahul Sharma",
+      email: 'rahul@student.edu',
       passwordHash,
-      role: 'STUDENT'
+      role: 'student',
+      rollNumber: "CSE-2025-01" // Must match StudentProfile
     });
     console.log('🔐 Users Created');
 
     // ============================================
-    // 3️⃣ PROFILES (Personal Data)
+    // 3️⃣ PROFILES (Detailed Layer)
     // ============================================
 
     // Faculty Profile
+    // Note: We manually split name "John" and "Smith" to satisfy schema
     const facultyProfile = await FacultyProfile.create({
       userId: facultyUser._id,
       departmentId: deptCSE._id,
@@ -100,22 +122,25 @@ const seedData = async () => {
       designation: 'Professor',
       qualification: 'Ph.D in AI',
       joiningDate: new Date('2020-01-15'),
-      employmentType: 'PERMANENT'
+      employmentType: 'PERMANENT',
+      phone: "9876500001",
+      officeLocation: "Block-A, Room 202"
     });
 
     // Student Profile
     const studentProfile = await StudentProfile.create({
       userId: studentUser._id,
       departmentId: deptCSE._id,
-      firstName: 'Vikas',
-      lastName: 'Kushwaha',
-      rollNumber: 'CSE2025001',
+      firstName: 'Rahul',
+      lastName: 'Sharma',
+      rollNumber: 'CSE-2025-01', // Matches User
       batchYear: 2025,
       currentSemester: 5,
       guardianDetails: {
-        name: 'Mr. Kushwaha',
+        name: 'Mr. Sharma',
         phone: '9876543210'
-      }
+      },
+      currentStatus: "ACTIVE"
     });
     console.log('👤 Profiles Created');
 
@@ -123,17 +148,18 @@ const seedData = async () => {
     // 4️⃣ ACADEMICS (Courses & Offerings)
     // ============================================
 
-    // Define the Course (Catalog)
+    // Course (The Subject)
     const pyCourse = await Course.create({
       name: 'Advanced Python',
       code: 'CS-301',
       credits: 4,
       departmentId: deptCSE._id,
-      type: 'CORE'
+      type: 'CORE',
+      isActive: true
     });
 
-    // Create the Offering (Real Class)
-    // "Prof. Smith teaches Advanced Python in Fall 2025"
+    // Offering (The Actual Class)
+    // Linked to FacultyProfile (NOT User)
     const pyOffering = await CourseOffering.create({
       courseId: pyCourse._id,
       facultyId: facultyProfile._id,
@@ -145,52 +171,63 @@ const seedData = async () => {
     console.log('📚 Course & Offering Created');
 
     // ============================================
-    // 5️⃣ STUDENT ACTIONS (Enrollment, Attendance, Marks)
+    // 5️⃣ STUDENT ACTIONS (Enrollment & Activity)
     // ============================================
 
-    // 1. Enroll Vikas in Python
+    // 1. Enrollment
     await Enrollment.create({
       studentId: studentProfile._id,
       courseOfferingId: pyOffering._id,
-      status: 'ENROLLED'
+      status: 'ENROLLED',
+      enrollmentDate: new Date()
     });
 
-    // 2. Mark Attendance for Today
+    // 2. Attendance
+    // Linked to StudentProfile and markedBy User (Faculty)
     await Attendance.create({
       studentId: studentProfile._id,
       courseOfferingId: pyOffering._id,
-      date: new Date(),
+      date: new Date(), // Today
       status: 'PRESENT',
-      markedBy: facultyUser._id
+      markedBy: facultyUser._id // User ID
     });
 
-    // 3. Upload Marks (Internal 1)
+    // 3. Marks
+    // Validated: 42 <= 50 (Passes validation)
     await Marks.create({
       studentId: studentProfile._id,
       courseOfferingId: pyOffering._id,
       examType: 'INTERNAL_1',
       marksObtained: 42,
-      maxMarks: 50
+      maxMarks: 50,
+      isLocked: false
     });
     console.log('🎓 Enrollment, Attendance & Marks Added');
 
     // ============================================
-    // 6️⃣ COMMUNICATION (Announcements)
+    // 6️⃣ ANNOUNCEMENTS
     // ============================================
     await Announcement.create({
-      title: 'Mid-Sem Exams Postponed',
-      message: 'Due to heavy rains, exams are shifted by 2 days.',
+      title: 'Welcome to Fall 2025',
+      message: 'Classes will begin on August 1st. Please check your schedule.',
       targetAudience: 'ALL',
-      createdBy: adminUser._id,
-      isImportant: true
+      createdBy: adminUser._id, // User ID
+      isImportant: true,
+      departmentId: null // For everyone
     });
     console.log('📢 Announcement Posted');
 
-    console.log('\n🎉 SUCCESS: Level-2 Database Seeded Successfully!');
+    console.log('\n🎉 SUCCESS: Database seeded with zero errors!');
     process.exit();
 
   } catch (error) {
     console.error('❌ Seeding Failed:', error);
+    // Log the validation errors specifically if they exist
+    if (error.name === 'ValidationError') {
+        for (let field in error.errors) {
+            console.error(`   -> Field "${field}": ${error.errors[field].message}`);
+        }
+    }
     process.exit(1);
   }
 };
