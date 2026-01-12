@@ -2,12 +2,14 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const { protect } = require("../middleware/authMiddleware");
-const upload = require("../middleware/uploadMiddleware"); // <--- Import the new middleware
+const upload = require("../middleware/uploadMiddleware");
 
 // GET /api/users/faculty-list
 router.get("/faculty-list", protect, async (req, res) => {
   try {
-    const faculty = await User.find({ role: "Faculty" }).select("_id name rollNumber email");
+    // ✅ FIX: Use Regex for case-insensitive search (matches "faculty", "Faculty", "FACULTY")
+    const faculty = await User.find({ role: { $regex: /^faculty$/i } })
+      .select("_id name rollNumber email");
     res.json(faculty);
   } catch (err) {
     res.status(500).json({ message: "Server error fetching faculty list" });
@@ -16,17 +18,21 @@ router.get("/faculty-list", protect, async (req, res) => {
 
 // 🚀 LEVEL 3: Upload Profile Photo Route
 // POST /api/users/upload-photo
-// Expects form-data with key 'photo'
-router.post("/upload-photo", upload.single("photo"), (req, res) => {
+// ✅ FIX: Added 'protect' middleware to secure the route
+router.post("/upload-photo", protect, upload.single("photo"), async (req, res) => {
   try {
-    // If the upload middleware works, req.file will exist
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Cloudinary automatically gives us the public URL in req.file.path
+    // ✅ FIX: Save the URL to the database
+    // req.user is available because of 'protect' middleware
+    const user = await User.findById(req.user.id);
+    user.profilePicture = req.file.path; // Make sure your User model has this field or allows loose schema
+    await user.save();
+
     res.json({
-      message: "Image uploaded successfully!",
+      message: "Image uploaded and saved successfully!",
       url: req.file.path
     });
 

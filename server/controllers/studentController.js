@@ -47,7 +47,11 @@ exports.getStudentCourses = async (req, res) => {
         path: "courseOfferingId",
         populate: [
           { path: "courseId", select: "name code credits" }, // Needs Course model
-          { path: "facultyId", select: "firstName lastName" } // Needs FacultyProfile model
+          // ✅ FIX: Populate 'facultyId' (Profile) -> then 'userId' (Name)
+          { 
+            path: "facultyId", 
+            populate: { path: "userId", select: "name" } 
+          } 
         ]
       });
 
@@ -57,13 +61,16 @@ exports.getStudentCourses = async (req, res) => {
       // Safety check: ensure offering and courseId exist
       if (!offering || !offering.courseId) return null;
 
+      // ✅ FIX: safely access nested user name
+      const facultyName = offering.facultyId && offering.facultyId.userId 
+        ? offering.facultyId.userId.name 
+        : "TBD";
+
       return {
         courseName: offering.courseId.name,
         courseCode: offering.courseId.code,
         credits: offering.courseId.credits,
-        faculty: offering.facultyId 
-          ? `${offering.facultyId.firstName} ${offering.facultyId.lastName}` 
-          : "TBD",
+        faculty: facultyName, // Corrected Name Logic
         room: offering.roomNumber,
         section: offering.section,
         status: enroll.status

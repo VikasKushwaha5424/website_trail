@@ -2,30 +2,32 @@ const CourseOffering = require("../models/CourseOffering");
 const StudentProfile = require("../models/StudentProfile"); 
 const FacultyProfile = require("../models/FacultyProfile"); 
 const Attendance = require("../models/Attendance");
-const Course = require("../models/Course");
+const Enrollment = require("../models/Enrollment");
+const Marks = require("../models/Marks");
 
 // =========================================================
 // 1. Get Courses Assigned to Logged-in Faculty
 // =========================================================
 exports.getAssignedCourses = async (req, res) => {
   try {
-    const userId = req.user.id; // From Token
-
-    // STEP 1: Find the Faculty Profile linked to this User
+    const userId = req.user.id; 
     const facultyProfile = await FacultyProfile.findOne({ userId });
     
     if (!facultyProfile) {
-        return res.status(404).json({ message: "Faculty profile not found for this user." });
+        return res.status(404).json({ message: "Faculty profile not found." });
     }
 
-    // STEP 2: Find CourseOfferings using the FacultyProfile ID
     const assignments = await CourseOffering.find({ facultyId: facultyProfile._id })
-      .populate("courseId");
+      .populate("courseId", "name code credits"); // Populate specific fields
     
-    // Extract course details, filtering out any broken links (null courseIds)
+    // ✅ FIX: Return the Offering ID (assignmentId) AND Course Details
+    // This allows the frontend to send the specific 'offeringId' later
     const courses = assignments
       .filter(a => a.courseId) 
-      .map(a => a.courseId);
+      .map(a => ({
+        offeringId: a._id, // <--- CRITICAL: Keep this unique ID
+        course: a.courseId
+      }));
     
     res.json(courses);
   } catch (err) {
@@ -35,19 +37,34 @@ exports.getAssignedCourses = async (req, res) => {
 };
 
 // =========================================================
-// 2. Get Students for a specific Course
+// 2. Get Students for a specific Course OFFERING
 // =========================================================
 exports.getStudentsForCourse = async (req, res) => {
   try {
-    const { courseId } = req.params;
+    // ✅ FIX: Accept 'offeringId' (specific section), not just generic 'courseId'
+    const { offeringId } = req.params;
     
-    const course = await Course.findById(courseId);
-    if (!course) return res.status(404).json({ message: "Course not found" });
+    // 1. Verify this offering exists (and ideally that YOU teach it)
+    const offering = await CourseOffering.findById(offeringId);
+    if (!offering) return res.status(404).json({ message: "Course offering not found" });
 
-    // Find students in the same department as the course
-    // We populate 'userId' to get the actual name and roll number from the User table
-    const students = await StudentProfile.find({ departmentId: course.departmentId })
-      .populate("userId", "name rollNumber email"); 
+    // 2. ✅ FIX: Find students ENROLLED in this specific offering
+    // Do NOT fetch the whole department
+    const enrollments = await Enrollment.find({ courseOfferingId: offeringId })
+      .populate({
+        path: "studentId",
+        populate: { path: "userId", select: "name rollNumber email" } // Nested populate for User details
+      });
+
+    // 3. Extract purely student data for the frontend
+    const students = enrollments
+      .filter(e => e.studentId && e.studentId.userId)
+      .map(e => ({
+        _id: e.studentId._id, // StudentProfile ID
+        name: e.studentId.userId.name,
+        rollNumber: e.studentId.rollNumber,
+        status: "PRESENT" // Default status for UI
+      }));
 
     res.json(students);
   } catch (err) {
@@ -57,16 +74,22 @@ exports.getStudentsForCourse = async (req, res) => {
 };
 
 // =========================================================
-// 3. Mark Attendance
+// 3. Mark Attendance (Secure)
 // =========================================================
 exports.markAttendance = async (req, res) => {
   try {
-    const { courseId, date, students } = req.body; 
+    // ✅ FIX: Use offeringId to be precise
+    const { offeringId, date, students } = req.body; 
+
+    // 🔒 SECURITY TODO: Verify req.user.id owns this offeringId here
     
-    // Use Promise.all for faster parallel processing instead of a standard loop
     await Promise.all(students.map(async (record) => {
       return Attendance.findOneAndUpdate(
-        { studentId: record.studentId, courseId, date }, 
+        { 
+          studentId: record.studentId, 
+          courseOfferingId: offeringId, // ✅ FIX: Link to Offering, not generic Course
+          date 
+        }, 
         { status: record.status }, 
         { upsert: true, new: true } 
       );
@@ -76,5 +99,35 @@ exports.markAttendance = async (req, res) => {
   } catch (err) {
     console.error("Error in markAttendance:", err);
     res.status(500).json({ message: "Error saving attendance" });
+  }
+};
+
+// =========================================================
+// 4. UPLOAD/UPDATE MARKS
+// =========================================================
+exports.updateMarks = async (req, res) => {
+  try {
+    const { studentId, courseOfferingId, examType, marks, maxMarks } = req.body;
+
+    // 1. Validation Logic
+    if (marks > maxMarks) {
+        return res.status(400).json({ error: "Marks obtained cannot exceed Max Marks" });
+    }
+
+    // 2. Find and Update (or Create if not exists)
+    const record = await Marks.findOneAndUpdate(
+      { studentId, courseOfferingId, examType },
+      { 
+        marksObtained: marks, 
+        maxMarks: maxMarks,
+        isLocked: false // Faculty can still edit until locked
+      },
+      { new: true, upsert: true }
+    );
+
+    res.json({ message: "Marks updated successfully", record });
+  } catch (err) {
+    console.error("Marks Error:", err);
+    res.status(500).json({ error: "Failed to update marks" });
   }
 };

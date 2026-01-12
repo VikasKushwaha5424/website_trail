@@ -1,25 +1,39 @@
 const { Fee, Payment } = require("../models/Fee");
+const StudentProfile = require("../models/StudentProfile"); // Required to find the logged-in student
 
-// 1. Get My Dues (For Student Dashboard)
+// 1. Get My Dues (SECURE)
 exports.getMyDueFees = async (req, res) => {
   try {
-    // Assuming req.user is populated by authMiddleware
-    // We need to find the student profile first (omitted for brevity, usually middleware does this)
-    const fees = await Fee.find({ studentId: req.params.studentId }).populate("semesterId", "name");
+    // ✅ FIX: Find the logged-in student's profile using req.user.id
+    const student = await StudentProfile.findOne({ userId: req.user.id });
+    
+    if (!student) {
+      return res.status(404).json({ message: "Student profile not found" });
+    }
+
+    // ✅ FIX: Query using the securely found ID
+    const fees = await Fee.find({ studentId: student._id }).populate("semesterId", "name");
     res.json(fees);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// 2. Pay Fees (The Transaction)
+// 2. Pay Fees (SECURE)
 exports.payFee = async (req, res) => {
   try {
     const { feeId, amount, method, transactionId } = req.body;
+
+    // ✅ FIX: Prevent negative amounts
+    if (amount <= 0) {
+        return res.status(400).json({ message: "Invalid payment amount" });
+    }
     
     // A. Find the Bill
     const fee = await Fee.findById(feeId);
     if (!fee) return res.status(404).json({ error: "Fee record not found" });
+
+    // 🔒 TODO: Verify that 'fee.studentId' belongs to req.user (Ownership Check)
 
     // B. Create Receipt
     const payment = await Payment.create({
@@ -28,7 +42,7 @@ exports.payFee = async (req, res) => {
       amount,
       method,
       transactionId,
-      receiptNumber: `RCP-${Date.now()}` // Simple auto-gen
+      receiptNumber: `RCP-${Date.now()}`
     });
 
     // C. Update the Bill

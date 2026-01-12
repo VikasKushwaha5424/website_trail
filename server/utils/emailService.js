@@ -2,31 +2,27 @@ const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, htmlContent) => {
   try {
-    // 1. Create Transporter (Using Ethereal for Dev)
-    // In Production, you would use Gmail/SendGrid here
-    const testAccount = await nodemailer.createTestAccount();
-
+    // 1. Create Transporter (Using Real Credentials from Env)
     const transporter = nodemailer.createTransport({
-      host: "smtp.ethereal.email",
-      port: 587,
-      secure: false, 
+      host: process.env.SMTP_HOST,     // e.g., smtp.gmail.com
+      port: process.env.SMTP_PORT,     // e.g., 587
+      secure: false,                   // true for 465, false for other ports
       auth: {
-        user: testAccount.user, 
-        pass: testAccount.pass, 
+        user: process.env.SMTP_USER,   // your email address
+        pass: process.env.SMTP_PASS,   // your email password or app password
       },
     });
 
     // 2. Send Mail
     const info = await transporter.sendMail({
-      from: '"College Portal" <admin@college.edu>', 
+      from: '"College Portal" <admin@college.edu>', // Note: Some providers (like Gmail) overwrite this with the auth user
       to: to, 
       subject: subject, 
       html: htmlContent, 
     });
 
     console.log("📨 Email sent: %s", info.messageId);
-    console.log("🔗 Preview URL: %s", nodemailer.getTestMessageUrl(info)); // <--- CLICK THIS LINK IN TERMINAL TO SEE EMAIL
-
+    
     return info;
   } catch (error) {
     console.error("❌ Email Error:", error);

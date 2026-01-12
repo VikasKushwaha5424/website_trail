@@ -12,18 +12,15 @@ const getGradePoint = (percentage) => {
 };
 
 const calculateSGPA = async (studentId) => {
-  // 1. Fetch ALL marks for this student
-  // We need the Course Details (Credits) associated with these marks
   const allMarks = await Marks.find({ studentId })
     .populate({
       path: "courseOfferingId",
-      populate: { path: "courseId" } // Deep populate to get Course Credits
+      populate: { path: "courseId" } 
     });
 
   if (!allMarks || allMarks.length === 0) return 0;
 
-  // 2. Group Marks by Course (e.g., Physics: [Internal: 20, Final: 60] -> Total: 80)
-  const courseTotals = {}; // { "course_id_123": { totalMarks: 80, credits: 4 } }
+  const courseTotals = {}; 
 
   allMarks.forEach((markEntry) => {
     const course = markEntry.courseOfferingId.courseId;
@@ -32,26 +29,29 @@ const calculateSGPA = async (studentId) => {
     if (!courseTotals[courseId]) {
       courseTotals[courseId] = { 
         name: course.name,
-        totalMarks: 0, 
+        totalObtained: 0, // Track Obtained
+        totalMax: 0,      // ✅ FIX: Track Max Possible Marks
         credits: course.credits 
       };
     }
-    // Add marks (Example: 20 from Internal + 50 from Final)
-    courseTotals[courseId].totalMarks += markEntry.marksObtained;
+    courseTotals[courseId].totalObtained += markEntry.marksObtained;
+    courseTotals[courseId].totalMax += markEntry.maxMarks; // ✅ FIX: Sum Max Marks
   });
 
-  // 3. Calculate Weighted Score
   let totalCredits = 0;
   let totalWeightedPoints = 0;
 
   console.log("\n📊 --- GRADE REPORT ---");
   for (const courseId in courseTotals) {
-    const { name, totalMarks, credits } = courseTotals[courseId];
+    const { name, totalObtained, totalMax, credits } = courseTotals[courseId];
     
-    // Convert 100/100 scale to Grade Point
-    const gradePoint = getGradePoint(totalMarks);
+    // ✅ FIX: Calculate true percentage
+    // If no max marks defined (prevent div by zero), assume 0%
+    const percentage = totalMax === 0 ? 0 : (totalObtained / totalMax) * 100;
     
-    console.log(`📘 ${name}: ${totalMarks} Marks -> Grade Point: ${gradePoint} (Credits: ${credits})`);
+    const gradePoint = getGradePoint(percentage);
+    
+    console.log(`📘 ${name}: ${totalObtained}/${totalMax} (${percentage.toFixed(1)}%) -> GP: ${gradePoint}`);
 
     totalWeightedPoints += (gradePoint * credits);
     totalCredits += credits;
@@ -59,11 +59,8 @@ const calculateSGPA = async (studentId) => {
 
   if (totalCredits === 0) return 0;
 
-  // 4. Final SGPA Formula
   const sgpa = (totalWeightedPoints / totalCredits).toFixed(2);
   console.log(`\n🏆 Calculated SGPA: ${sgpa}`);
-  console.log("-----------------------");
-  
   return sgpa;
 };
 
