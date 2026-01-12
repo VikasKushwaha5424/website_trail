@@ -1,6 +1,7 @@
 const Marks = require("../models/Marks");
+const CourseOffering = require("../models/CourseOffering"); // 👈 Import this
 
-// Helper: Convert Percentage to Grade Point (10-point scale)
+// Helper: Convert Percentage to Grade Point
 const getGradePoint = (percentage) => {
   if (percentage >= 90) return 10;
   if (percentage >= 80) return 9;
@@ -11,48 +12,56 @@ const getGradePoint = (percentage) => {
   return 0; // Fail
 };
 
-const calculateSGPA = async (studentId) => {
-  const allMarks = await Marks.find({ studentId })
-    .populate({
+// ✅ FIX: Accept semesterId to limit calculation to one term
+const calculateSGPA = async (studentId, semesterId) => {
+  
+  // 1. Find all CourseOfferings for this specific semester
+  const semesterOfferings = await CourseOffering.find({ semesterId }).select("_id");
+  const offeringIds = semesterOfferings.map(o => o._id);
+
+  // 2. Fetch marks ONLY for those offerings
+  const semesterMarks = await Marks.find({ 
+    studentId, 
+    courseOfferingId: { $in: offeringIds } 
+  })
+  .populate({
       path: "courseOfferingId",
       populate: { path: "courseId" } 
-    });
+  });
 
-  if (!allMarks || allMarks.length === 0) return 0;
+  if (!semesterMarks || semesterMarks.length === 0) return 0;
 
   const courseTotals = {}; 
 
-  allMarks.forEach((markEntry) => {
+  semesterMarks.forEach((markEntry) => {
+    // Safety Check
+    if(!markEntry.courseOfferingId || !markEntry.courseOfferingId.courseId) return;
+
     const course = markEntry.courseOfferingId.courseId;
     const courseId = course._id.toString();
 
     if (!courseTotals[courseId]) {
       courseTotals[courseId] = { 
         name: course.name,
-        totalObtained: 0, // Track Obtained
-        totalMax: 0,      // ✅ FIX: Track Max Possible Marks
+        totalObtained: 0, 
+        totalMax: 0,      
         credits: course.credits 
       };
     }
     courseTotals[courseId].totalObtained += markEntry.marksObtained;
-    courseTotals[courseId].totalMax += markEntry.maxMarks; // ✅ FIX: Sum Max Marks
+    courseTotals[courseId].totalMax += markEntry.maxMarks; 
   });
 
   let totalCredits = 0;
   let totalWeightedPoints = 0;
 
-  console.log("\n📊 --- GRADE REPORT ---");
   for (const courseId in courseTotals) {
-    const { name, totalObtained, totalMax, credits } = courseTotals[courseId];
+    const { totalObtained, totalMax, credits } = courseTotals[courseId];
     
-    // ✅ FIX: Calculate true percentage
-    // If no max marks defined (prevent div by zero), assume 0%
+    // Avoid division by zero
     const percentage = totalMax === 0 ? 0 : (totalObtained / totalMax) * 100;
-    
     const gradePoint = getGradePoint(percentage);
     
-    console.log(`📘 ${name}: ${totalObtained}/${totalMax} (${percentage.toFixed(1)}%) -> GP: ${gradePoint}`);
-
     totalWeightedPoints += (gradePoint * credits);
     totalCredits += credits;
   }
@@ -60,7 +69,6 @@ const calculateSGPA = async (studentId) => {
   if (totalCredits === 0) return 0;
 
   const sgpa = (totalWeightedPoints / totalCredits).toFixed(2);
-  console.log(`\n🏆 Calculated SGPA: ${sgpa}`);
   return sgpa;
 };
 

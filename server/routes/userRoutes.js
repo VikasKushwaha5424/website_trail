@@ -1,34 +1,53 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
+const FacultyProfile = require("../models/FacultyProfile"); // ✅ Added Import
 const { protect } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 
-// GET /api/users/faculty-list
+// =========================================================
+// 1. GET FACULTY LIST (Rich Data with Department)
+// =========================================================
 router.get("/faculty-list", protect, async (req, res) => {
   try {
-    // ✅ FIX: Use Regex for case-insensitive search (matches "faculty", "Faculty", "FACULTY")
-    const faculty = await User.find({ role: { $regex: /^faculty$/i } })
-      .select("_id name rollNumber email");
-    res.json(faculty);
+    // ✅ FIX: Query FacultyProfile to get Department & Qualifications
+    const facultyList = await FacultyProfile.find()
+      .populate("userId", "name email profilePicture") // Get Name/Email/Photo from User
+      .populate("departmentId", "name code");          // Get Department Name
+
+    // Format the data for the frontend directory
+    const result = facultyList
+      .filter(f => f.userId) // Safety check: Ensure User account still exists
+      .map(f => ({
+        _id: f.userId._id, // Keep the User ID as the main key
+        name: f.userId.name,
+        email: f.userId.email,
+        photo: f.userId.profilePicture,
+        department: f.departmentId ? f.departmentId.name : "Unassigned",
+        qualification: f.qualification
+      }));
+
+    res.json(result);
   } catch (err) {
+    console.error("Faculty List Error:", err);
     res.status(500).json({ message: "Server error fetching faculty list" });
   }
 });
 
-// 🚀 LEVEL 3: Upload Profile Photo Route
-// POST /api/users/upload-photo
-// ✅ FIX: Added 'protect' middleware to secure the route
+// =========================================================
+// 2. UPLOAD PROFILE PHOTO
+// =========================================================
 router.post("/upload-photo", protect, upload.single("photo"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // ✅ FIX: Save the URL to the database
     // req.user is available because of 'protect' middleware
     const user = await User.findById(req.user.id);
-    user.profilePicture = req.file.path; // Make sure your User model has this field or allows loose schema
+    
+    // Save Cloudinary URL to database
+    user.profilePicture = req.file.path; 
     await user.save();
 
     res.json({

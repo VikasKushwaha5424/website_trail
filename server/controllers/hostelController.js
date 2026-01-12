@@ -1,6 +1,8 @@
 const { Hostel, Room } = require("../models/Hostel");
 
-// 1. Allocate Room to Student
+// =========================================================
+// 1. Allocate Room to Student (Concurrency Safe)
+// =========================================================
 exports.allocateRoom = async (req, res) => {
   try {
     const { studentId, roomNumber, hostelName } = req.body;
@@ -8,28 +10,36 @@ exports.allocateRoom = async (req, res) => {
     const hostel = await Hostel.findOne({ name: hostelName });
     if (!hostel) return res.status(404).json({ error: "Hostel not found" });
 
+    // 1. Initial Lookup: Check if room exists and if student is already inside
     const room = await Room.findOne({ hostelId: hostel._id, roomNumber });
+
     if (!room) return res.status(404).json({ error: "Room not found" });
 
-    // ✅ FIX 1: Check if student is already in THIS room
+    // Check duplication (Read-only check is fine here)
     if (room.occupants.includes(studentId)) {
         return res.status(400).json({ error: "Student already in this room" });
     }
 
-    // ✅ FIX 2: Check Capacity
-    if (room.occupants.length >= room.capacity) {
-      return res.status(400).json({ error: "Room is Full!" });
+    // 🔒 2. ATOMIC UPDATE: Check Capacity AND Push in one operation
+    // This prevents "Race Conditions" where two people book the last spot simultaneously
+    const updatedRoom = await Room.findOneAndUpdate(
+      { 
+        _id: room._id, 
+        // Condition: Array size must be STRICTLY less than Capacity
+        $expr: { $lt: [{ $size: "$occupants" }, "$capacity"] } 
+      },
+      { 
+        $push: { occupants: studentId } 
+      },
+      { new: true } // Return the updated document
+    );
+
+    // If updatedRoom is null, it means the condition ($lt capacity) failed
+    if (!updatedRoom) {
+       return res.status(400).json({ error: "Room is Full! (Allocation Failed)" });
     }
 
-    // ✅ FIX 3: (Advanced) Check if student is in ANY room (Optional but recommended)
-    // const existingRoom = await Room.findOne({ occupants: studentId });
-    // if (existingRoom) return res.status(400).json({ error: "Student already has a room!" });
-
-    // C. Assign (Using push is safe now due to check above, but $addToSet is safer in concurrency)
-    room.occupants.push(studentId);
-    await room.save();
-
-    res.json({ message: "Room Allocated Successfully", room });
+    res.json({ message: "Room Allocated Successfully", room: updatedRoom });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

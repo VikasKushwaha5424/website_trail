@@ -18,14 +18,13 @@ exports.getAssignedCourses = async (req, res) => {
     }
 
     const assignments = await CourseOffering.find({ facultyId: facultyProfile._id })
-      .populate("courseId", "name code credits"); // Populate specific fields
+      .populate("courseId", "name code credits"); 
     
-    // ✅ FIX: Return the Offering ID (assignmentId) AND Course Details
-    // This allows the frontend to send the specific 'offeringId' later
+    // Return the Offering ID (assignmentId) AND Course Details
     const courses = assignments
       .filter(a => a.courseId) 
       .map(a => ({
-        offeringId: a._id, // <--- CRITICAL: Keep this unique ID
+        offeringId: a._id, 
         course: a.courseId
       }));
     
@@ -41,22 +40,18 @@ exports.getAssignedCourses = async (req, res) => {
 // =========================================================
 exports.getStudentsForCourse = async (req, res) => {
   try {
-    // ✅ FIX: Accept 'offeringId' (specific section), not just generic 'courseId'
+    // Note: Ensure your route is defined as /course/:offeringId/students
     const { offeringId } = req.params;
     
-    // 1. Verify this offering exists (and ideally that YOU teach it)
     const offering = await CourseOffering.findById(offeringId);
     if (!offering) return res.status(404).json({ message: "Course offering not found" });
 
-    // 2. ✅ FIX: Find students ENROLLED in this specific offering
-    // Do NOT fetch the whole department
     const enrollments = await Enrollment.find({ courseOfferingId: offeringId })
       .populate({
         path: "studentId",
-        populate: { path: "userId", select: "name rollNumber email" } // Nested populate for User details
+        populate: { path: "userId", select: "name rollNumber email" } 
       });
 
-    // 3. Extract purely student data for the frontend
     const students = enrollments
       .filter(e => e.studentId && e.studentId.userId)
       .map(e => ({
@@ -74,23 +69,46 @@ exports.getStudentsForCourse = async (req, res) => {
 };
 
 // =========================================================
-// 3. Mark Attendance (Secure)
+// 3. Mark Attendance (SECURED + NORMALIZED DATE)
 // =========================================================
 exports.markAttendance = async (req, res) => {
   try {
-    // ✅ FIX: Use offeringId to be precise
     const { offeringId, date, students } = req.body; 
+    const userId = req.user.id;
 
-    // 🔒 SECURITY TODO: Verify req.user.id owns this offeringId here
+    // 🔒 1. Get the Faculty Profile of the logged-in user
+    const facultyProfile = await FacultyProfile.findOne({ userId });
+    if (!facultyProfile) {
+        return res.status(403).json({ message: "Access denied. Faculty profile not found." });
+    }
+
+    // 🔒 2. SECURITY CHECK: Verify this faculty owns this course offering
+    const offering = await CourseOffering.findOne({ 
+        _id: offeringId, 
+        facultyId: facultyProfile._id 
+    });
+
+    if (!offering) {
+        return res.status(403).json({ message: "Security Warning: You are not authorized to mark attendance for this course." });
+    }
+
+    // 🛠️ FIX 1: Force date to midnight UTC to ensure uniqueness works
+    // This prevents "9:00 AM" and "10:00 AM" from counting as different days
+    const cleanDate = new Date(date);
+    cleanDate.setUTCHours(0, 0, 0, 0); 
     
+    // 3. Proceed to Save Attendance
     await Promise.all(students.map(async (record) => {
       return Attendance.findOneAndUpdate(
         { 
           studentId: record.studentId, 
-          courseOfferingId: offeringId, // ✅ FIX: Link to Offering, not generic Course
-          date 
+          courseOfferingId: offeringId, 
+          date: cleanDate // 👈 Use clean date
         }, 
-        { status: record.status }, 
+        { 
+          status: record.status,
+          markedBy: userId // 👈 FIX 2: Audit Logic (Track who marked it)
+        }, 
         { upsert: true, new: true } 
       );
     }));
@@ -103,24 +121,40 @@ exports.markAttendance = async (req, res) => {
 };
 
 // =========================================================
-// 4. UPLOAD/UPDATE MARKS
+// 4. UPLOAD/UPDATE MARKS (SECURED)
 // =========================================================
 exports.updateMarks = async (req, res) => {
   try {
     const { studentId, courseOfferingId, examType, marks, maxMarks } = req.body;
+    const userId = req.user.id;
 
-    // 1. Validation Logic
+    // 1. Input Validation
     if (marks > maxMarks) {
         return res.status(400).json({ error: "Marks obtained cannot exceed Max Marks" });
     }
 
-    // 2. Find and Update (or Create if not exists)
+    // 🔒 2. SECURITY CHECK: Verify Faculty Ownership
+    const facultyProfile = await FacultyProfile.findOne({ userId });
+    if (!facultyProfile) {
+        return res.status(403).json({ message: "Access denied. Faculty profile not found." });
+    }
+
+    const offering = await CourseOffering.findOne({ 
+        _id: courseOfferingId, 
+        facultyId: facultyProfile._id 
+    });
+
+    if (!offering) {
+        return res.status(403).json({ message: "You are not authorized to grade this course." });
+    }
+
+    // 3. Find and Update (or Create if not exists)
     const record = await Marks.findOneAndUpdate(
       { studentId, courseOfferingId, examType },
       { 
         marksObtained: marks, 
         maxMarks: maxMarks,
-        isLocked: false // Faculty can still edit until locked
+        isLocked: false 
       },
       { new: true, upsert: true }
     );

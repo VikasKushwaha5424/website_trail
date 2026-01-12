@@ -15,7 +15,9 @@ const sendEmail = async (to, subject, htmlContent) => {
 
     // 2. Send Mail
     const info = await transporter.sendMail({
-      from: '"College Portal" <admin@college.edu>', // Note: Some providers (like Gmail) overwrite this with the auth user
+      // ✅ FIX: Use the authenticated email to prevent rejection
+      // Most providers (Gmail, Outlook) require the 'from' address to match the auth user
+      from: `"College Portal" <${process.env.SMTP_USER}>`, 
       to: to, 
       subject: subject, 
       html: htmlContent, 

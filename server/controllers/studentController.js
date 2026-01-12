@@ -3,22 +3,16 @@ const Enrollment = require("../models/Enrollment");
 const CourseOffering = require("../models/CourseOffering");
 const Attendance = require("../models/Attendance");
 const Marks = require("../models/Marks");
-
-// 👇 CRITICAL IMPORTS: Required for .populate() to work correctly
-const Department = require("../models/Department"); 
-const Course = require("../models/Course");
-const FacultyProfile = require("../models/FacultyProfile");
-const User = require("../models/User"); 
+const Semester = require("../models/Semester"); 
+const Announcement = require("../models/Announcement"); // ✅ Added Import
 
 // =========================================================
-// 1. GET STUDENT PROFILE (Name, Roll No, Dept)
+// 1. GET STUDENT PROFILE
 // =========================================================
 exports.getStudentProfile = async (req, res) => {
   try {
-    // req.user.id comes from the Auth Middleware
     const profile = await StudentProfile.findOne({ userId: req.user.id })
-      .populate("departmentId", "name code") // Needs Department model
-      // ✅ FIXED: User model uses 'name', NOT 'username'
+      .populate("departmentId", "name code")
       .populate("userId", "email name rollNumber"); 
 
     if (!profile) {
@@ -33,49 +27,49 @@ exports.getStudentProfile = async (req, res) => {
 };
 
 // =========================================================
-// 2. GET TIMETABLE (My Courses & Faculty)
+// 2. GET TIMETABLE (Active Semester Only)
 // =========================================================
 exports.getStudentCourses = async (req, res) => {
   try {
-    // 1. Get Student ID
     const student = await StudentProfile.findOne({ userId: req.user.id });
     if (!student) return res.status(404).json({ message: "Student not found" });
 
-    // 2. Find Enrollments -> Populate Offering -> Populate Course & Faculty
+    // Find the Active Semester
+    const activeSemester = await Semester.findOne({ isActive: true });
+    if (!activeSemester) {
+        return res.json([]); // No active semester = Empty Timetable
+    }
+
+    // Filter enrollments by Active Semester
     const enrollments = await Enrollment.find({ studentId: student._id })
       .populate({
         path: "courseOfferingId",
+        match: { semesterId: activeSemester._id }, // 👈 ONLY fetch current semester offerings
         populate: [
-          { path: "courseId", select: "name code credits" }, // Needs Course model
-          // ✅ FIX: Populate 'facultyId' (Profile) -> then 'userId' (Name)
-          { 
-            path: "facultyId", 
-            populate: { path: "userId", select: "name" } 
-          } 
+          { path: "courseId", select: "name code credits" }, 
+          { path: "facultyId", populate: { path: "userId", select: "name" } } 
         ]
       });
 
-    // 3. Format Data for Frontend (Clean Array)
-    const timetable = enrollments.map(enroll => {
-      const offering = enroll.courseOfferingId;
-      // Safety check: ensure offering and courseId exist
-      if (!offering || !offering.courseId) return null;
+    // Format Data
+    const timetable = enrollments
+      .filter(enroll => enroll.courseOfferingId) // Remove nulls (past semesters)
+      .map(enroll => {
+        const offering = enroll.courseOfferingId;
+        const facultyName = offering.facultyId && offering.facultyId.userId 
+          ? offering.facultyId.userId.name 
+          : "TBD";
 
-      // ✅ FIX: safely access nested user name
-      const facultyName = offering.facultyId && offering.facultyId.userId 
-        ? offering.facultyId.userId.name 
-        : "TBD";
-
-      return {
-        courseName: offering.courseId.name,
-        courseCode: offering.courseId.code,
-        credits: offering.courseId.credits,
-        faculty: facultyName, // Corrected Name Logic
-        room: offering.roomNumber,
-        section: offering.section,
-        status: enroll.status
-      };
-    }).filter(item => item !== null); // Remove any nulls
+        return {
+          courseName: offering.courseId.name,
+          courseCode: offering.courseId.code,
+          credits: offering.courseId.credits,
+          faculty: facultyName,
+          room: offering.roomNumber,
+          section: offering.section,
+          status: enroll.status
+        };
+      });
 
     res.json(timetable);
   } catch (error) {
@@ -85,21 +79,29 @@ exports.getStudentCourses = async (req, res) => {
 };
 
 // =========================================================
-// 3. GET ATTENDANCE SUMMARY (Calculated %)
+// 3. GET ATTENDANCE SUMMARY (Active Semester Only)
 // =========================================================
 exports.getAttendanceStats = async (req, res) => {
   try {
     const student = await StudentProfile.findOne({ userId: req.user.id });
     if (!student) return res.status(404).json({ message: "Student not found" });
 
-    // 1. Get Total Classes & Present Count
-    const totalClasses = await Attendance.countDocuments({ studentId: student._id });
+    const activeSemester = await Semester.findOne({ isActive: true });
+    let query = { studentId: student._id };
+    
+    // Only count attendance for the current semester's offerings
+    if (activeSemester) {
+        const currentOfferings = await CourseOffering.find({ semesterId: activeSemester._id }).select("_id");
+        const offeringIds = currentOfferings.map(o => o._id);
+        query.courseOfferingId = { $in: offeringIds };
+    }
+
+    const totalClasses = await Attendance.countDocuments(query);
     const presentClasses = await Attendance.countDocuments({ 
-      studentId: student._id, 
+      ...query, 
       status: { $in: ["PRESENT", "LATE"] } 
     });
 
-    // 2. Calculate Percentage
     const percentage = totalClasses === 0 ? 0 : (presentClasses / totalClasses) * 100;
 
     res.json({
@@ -115,7 +117,7 @@ exports.getAttendanceStats = async (req, res) => {
 };
 
 // =========================================================
-// 4. GET MY MARKS (Exam Results)
+// 4. GET MY MARKS (Safe Division Fix)
 // =========================================================
 exports.getStudentMarks = async (req, res) => {
   try {
@@ -125,26 +127,54 @@ exports.getStudentMarks = async (req, res) => {
     const marks = await Marks.find({ studentId: student._id })
       .populate({
         path: "courseOfferingId",
-        populate: { path: "courseId", select: "name code" } // Needs Course model
+        populate: { path: "courseId", select: "name code" }
       });
 
-    // Format for Frontend
     const result = marks.map(m => {
-        // Safety check
         if(!m.courseOfferingId || !m.courseOfferingId.courseId) return null;
+
+        // ✅ FIX: Prevent Division by Zero
+        // If maxMarks is 0 (ungraded/seminar), return "N/A" instead of Infinity/NaN
+        const percentage = m.maxMarks > 0 
+            ? ((m.marksObtained / m.maxMarks) * 100).toFixed(1) 
+            : "N/A"; 
 
         return {
           exam: m.examType, 
           subject: m.courseOfferingId.courseId.name,
           obtained: m.marksObtained,
           max: m.maxMarks,
-          percentage: ((m.marksObtained / m.maxMarks) * 100).toFixed(1)
+          percentage: percentage
         }
     }).filter(item => item !== null);
 
     res.json(result);
   } catch (error) {
     console.error("Marks Error:", error.message);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// =========================================================
+// 5. GET ANNOUNCEMENTS (With Expiry Logic)
+// =========================================================
+exports.getAnnouncements = async (req, res) => {
+  try {
+    // Fetch notices that are for ALL or STUDENT, AND are not expired
+    const notices = await Announcement.find({
+        targetAudience: { $in: ["ALL", "STUDENT"] },
+        $or: [
+            { expiresAt: { $exists: false } }, // No expiry field set
+            { expiresAt: null },               // Expiry is explicitly null
+            { expiresAt: { $gt: new Date() } } // Expiry date is in the future
+        ]
+    })
+    .sort({ createdAt: -1 }) // Newest first
+    .limit(20); 
+
+    res.json(notices);
+  } catch (error) {
+    console.error("Notice Error:", error.message);
     res.status(500).json({ message: "Server Error" });
   }
 };

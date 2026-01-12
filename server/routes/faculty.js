@@ -19,9 +19,9 @@ router.use(facultyOnly);
 // Returns the list of subjects taught by this teacher
 router.get("/courses", facultyController.getAssignedCourses);
 
-// GET /api/faculty/course/:courseId/students
-// Returns the student list for a specific dropdown selection
-router.get("/course/:courseId/students", facultyController.getStudentsForCourse);
+// ✅ FIX: Changed :courseId to :offeringId to match the controller
+// GET /api/faculty/course/:offeringId/students
+router.get("/course/:offeringId/students", facultyController.getStudentsForCourse);
 
 // POST /api/faculty/mark-attendance
 // Saves the attendance data

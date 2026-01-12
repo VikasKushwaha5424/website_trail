@@ -29,15 +29,9 @@ const marksSchema = new mongoose.Schema({
   marksObtained: { 
     type: Number, 
     required: true,
-    min: 0,
-    // 🛡️ VALIDATION: This replaces the faulty 'pre-save' hook
-    validate: {
-      validator: function(value) {
-        // "this.maxMarks" access works during .create() and .save()
-        return value <= this.maxMarks;
-      },
-      message: props => `Marks obtained (${props.value}) cannot be greater than Max Marks!`
-    }
+    min: 0
+    // ℹ️ NOTE: The "maxMarks" validation is handled in the Controller.
+    // Mongoose validators fail on updates because 'this' is undefined.
   },
 
   // 3️⃣ CONTROL

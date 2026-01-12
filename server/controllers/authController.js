@@ -1,5 +1,5 @@
 const User = require("../models/User");
-const StudentProfile = require("../models/StudentProfile"); // 👈 Added Import
+const StudentProfile = require("../models/StudentProfile"); 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const sendEmail = require("../utils/emailService");
@@ -10,25 +10,37 @@ const generateToken = (id, role) => {
 };
 
 // ==========================================
-// 1. REGISTER USER
+// 1. REGISTER USER (With Validation & Rollback)
 // ==========================================
 exports.registerUser = async (req, res) => {
+  // 1️⃣ Declare user outside 'try' so it is accessible in 'catch'
+  let user = null; 
+
   try {
     // 🔒 SECURITY FIX: Do not extract 'role' from req.body to prevent privilege escalation
     const { name, email, password, rollNumber } = req.body;
 
-    // 1. Check if user exists
+    // 2. Check if Email Exists
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ message: "User already exists" });
+      return res.status(400).json({ message: "User already exists with this email" });
     }
 
-    // 2. Hash Password
+    // 3. ✅ FIX: Check if Roll Number Exists
+    if (rollNumber) {
+        const rollExists = await User.findOne({ rollNumber });
+        if (rollExists) {
+            return res.status(400).json({ message: "Roll Number already registered" });
+        }
+    }
+
+    // 4. Hash Password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 3. Create the Base User Account
-    const user = await User.create({
+    // 5. Create the Base User Account
+    // Assign to the variable declared outside
+    user = await User.create({
       name,
       email,
       passwordHash: hashedPassword,
@@ -38,8 +50,7 @@ exports.registerUser = async (req, res) => {
     });
 
     if (user) {
-      // ✅ FIX: Create StudentProfile immediately to prevent "Zombie" users
-      // This ensures the student has a profile to load in the dashboard
+      // 6. Create StudentProfile immediately
       const nameParts = name.trim().split(" ");
       const firstName = nameParts[0];
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ".";
@@ -54,10 +65,17 @@ exports.registerUser = async (req, res) => {
         currentStatus: "ACTIVE"
       });
 
-      // 4. Send Welcome Email
-      sendEmail(email, "Welcome! 🎓", `<h1>Hello ${name}, welcome to the portal.</h1>`);
+      // 7. Send Welcome Email
+      // Note: If email fails, the catch block will trigger rollback.
+      // This is generally safer for consistency, but you can wrap in try/catch if you prefer soft failure.
+      try {
+        await sendEmail(email, "Welcome! 🎓", `<h1>Hello ${name}, welcome to the portal.</h1>`);
+      } catch (emailErr) {
+        console.error("Warning: Failed to send welcome email:", emailErr.message);
+        // We do NOT rollback user creation just because email failed
+      }
 
-      // 5. Return Token
+      // 8. Return Token
       res.status(201).json({
         _id: user.id,
         name: user.name,
@@ -68,10 +86,16 @@ exports.registerUser = async (req, res) => {
     } else {
       res.status(400).json({ message: "Invalid user data" });
     }
+
   } catch (error) {
     console.error("Register Error:", error);
-    // Cleanup: If profile creation fails, you might consider deleting the user here (rollback)
-    // For now, we return the error
+
+    // 🛑 ROLLBACK: Delete the 'Zombie' User if profile creation failed
+    if (user) {
+        console.log("Creation failed. Rolling back user:", user._id);
+        await User.findByIdAndDelete(user._id);
+    }
+
     res.status(500).json({ message: error.message });
   }
 };

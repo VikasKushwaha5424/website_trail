@@ -16,7 +16,8 @@ const courseOfferingSchema = new mongoose.Schema({
   },
 
   // 3️⃣ WHEN IS IT HAPPENING?
-  // ✅ FIX: Changed required to 'false' to prevent crashes until Semesters are fully implemented
+  // Note: While 'required' is false for flexibility, this field is crucial 
+  // for the unique index below to work across different terms.
   semesterId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Semester", 
@@ -42,8 +43,10 @@ const courseOfferingSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-// 🛡️ DATA INTEGRITY
-// Note: Removed 'semesterId' from unique index temporarily to match the optional field
-courseOfferingSchema.index({ courseId: 1, section: 1 }, { unique: true });
+// 🛡️ DATA INTEGRITY FIX
+// We must include 'semesterId' in the unique index. 
+// This allows "Physics Sec A" to exist in Fall 2024 AND Spring 2025 independently.
+// Without 'semesterId', the database would block the second offering.
+courseOfferingSchema.index({ courseId: 1, section: 1, semesterId: 1 }, { unique: true });
 
 module.exports = mongoose.model("CourseOffering", courseOfferingSchema);

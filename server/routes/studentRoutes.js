@@ -9,7 +9,8 @@ const {
   getStudentProfile, 
   getStudentCourses, 
   getAttendanceStats,
-  getStudentMarks
+  getStudentMarks,
+  getAnnouncements // ✅ Added Import
 } = require("../controllers/studentController");
 
 // ==========================================
@@ -19,7 +20,6 @@ const {
 router.use(protect); 
 
 // 2. User must be a STUDENT (Faculty/Admins cannot peek at student data here)
-// ✅ FIXED: Allow both cases to prevent lockout
 router.use(authorize("student", "STUDENT")); 
 
 // ==========================================
@@ -37,5 +37,9 @@ router.get("/attendance", getAttendanceStats);
 
 // GET /api/student/marks (Results)
 router.get("/marks", getStudentMarks);
+
+// GET /api/student/notices (Announcements)
+// ✅ NEW ROUTE: Allows students to fetch their specific notices
+router.get("/notices", getAnnouncements);
 
 module.exports = router;

@@ -6,7 +6,6 @@ const Course = require("../models/Course");
 const Department = require("../models/Department");
 const CourseOffering = require("../models/CourseOffering");
 const Semester = require("../models/Semester");
-// ✅ FIX: Import Enrollment model
 const Enrollment = require("../models/Enrollment"); 
 
 // =========================================================
@@ -109,34 +108,49 @@ exports.addCourse = async (req, res) => {
 };
 
 // =========================================================
-// 4. ASSIGN FACULTY TO COURSE
+// 4. ASSIGN FACULTY TO COURSE (Safe Version)
 // =========================================================
 exports.assignFaculty = async (req, res) => {
   try {
-    const { facultyId, courseId } = req.body;
+    // 1. Accept semesterId optionally (for manual override)
+    const { facultyId, courseId, semesterId } = req.body;
     
-    // ✅ FIX: Find the currently ACTIVE semester
-    const activeSemester = await Semester.findOne({ isActive: true });
-    if (!activeSemester) {
-        return res.status(400).json({ error: "No Active Semester found. Please create one first." });
+    let targetSemesterId = semesterId;
+
+    // 2. If no ID provided, find the system's current active semester safely
+    if (!targetSemesterId) {
+        const activeSemesters = await Semester.find({ isActive: true });
+
+        if (activeSemesters.length === 0) {
+            return res.status(400).json({ error: "No Active Semester found. Please create one first." });
+        }
+
+        // 🛡️ SAFETY CHECK: Prevent ambiguity if multiple semesters are accidentally active
+        if (activeSemesters.length > 1) {
+            return res.status(500).json({ 
+                error: "System Error: Multiple Active Semesters detected. Please specify 'semesterId' explicitly or fix database." 
+            });
+        }
+
+        targetSemesterId = activeSemesters[0]._id;
     }
 
-    // Check if assignment already exists for THIS semester
+    // 3. Check if assignment already exists for THIS semester
     const existing = await CourseOffering.findOne({ 
         facultyId, 
         courseId,
-        semesterId: activeSemester._id 
+        semesterId: targetSemesterId 
     });
 
     if (existing) {
-        return res.status(400).json({ message: "Faculty is already assigned to this course this semester." });
+        return res.status(400).json({ message: "Faculty is already assigned to this course for the selected semester." });
     }
 
-    // ✅ FIX: Create the link with the Semester ID
+    // 4. Create the assignment
     await CourseOffering.create({ 
         facultyId, 
         courseId,
-        semesterId: activeSemester._id 
+        semesterId: targetSemesterId 
     });
     
     res.status(200).json({ message: "Faculty assigned to course successfully" });
@@ -147,18 +161,29 @@ exports.assignFaculty = async (req, res) => {
 };
 
 // =========================================================
-// 5. ENROLL STUDENT IN A COURSE
+// 5. ENROLL STUDENT IN A COURSE (With Capacity Check)
 // =========================================================
 exports.enrollStudent = async (req, res) => {
   try {
     const { studentId, courseOfferingId } = req.body;
 
-    // Check if already enrolled
+    // 1. Check if already enrolled
     const existing = await Enrollment.findOne({ studentId, courseOfferingId });
     if (existing) {
       return res.status(400).json({ message: "Student already enrolled in this class" });
     }
 
+    // ✅ FIX: Check Capacity vs Current Enrollments
+    const offering = await CourseOffering.findById(courseOfferingId);
+    if (!offering) return res.status(404).json({ message: "Course Offering not found" });
+
+    const currentCount = await Enrollment.countDocuments({ courseOfferingId });
+    
+    if (currentCount >= offering.capacity) {
+        return res.status(400).json({ error: `Class is Full! Capacity: ${offering.capacity}` });
+    }
+
+    // 2. Create Enrollment
     const enrollment = await Enrollment.create({
       studentId,
       courseOfferingId,
@@ -173,24 +198,76 @@ exports.enrollStudent = async (req, res) => {
 };
 
 // =========================================================
-// 6. Broadcast Notice to ALL Students
+// 6. Broadcast Notice (Global OR Targeted)
 // =========================================================
 exports.broadcastNotice = async (req, res) => {
   try {
-    const { title, message } = req.body;
+    // Extract 'target' from the request (e.g., "CSE-Semester-1" or "ALL")
+    const { title, message, target } = req.body;
 
     const io = req.app.get("socketio");
 
-    io.to("Physics_Class").emit("receive_notice", {
-      title: title,
-      message: message,
-      time: new Date().toLocaleTimeString()
-    });
+    // Check if a specific target room is provided
+    if (target && target !== "ALL") {
+        // 🎯 OPTION 1: Send to Specific Class/Room only
+        io.to(target).emit("receive_notice", {
+            title: title,
+            message: message,
+            target: target, // Optional: Let client know it was targeted
+            time: new Date().toLocaleTimeString()
+        });
+        console.log(`📢 Notice sent to room: ${target}`);
+    } else {
+        // 🌍 OPTION 2: Send to EVERYONE (Global Broadcast)
+        io.emit("receive_notice", {
+            title: title,
+            message: message,
+            target: "ALL",
+            time: new Date().toLocaleTimeString()
+        });
+        console.log(`📢 Global notice sent to all users`);
+    }
 
     res.json({ message: "📢 Notice Broadcasted Successfully!" });
 
   } catch (err) {
-    console.error(err);
+    console.error("Broadcast Error:", err);
     res.status(500).json({ error: "Failed to send notice" });
+  }
+};
+
+// =========================================================
+// 7. CREATE SEMESTER (Handles "Single Active" Rule + Validation)
+// =========================================================
+exports.createSemester = async (req, res) => {
+  try {
+    const { name, code, academicYear, startDate, endDate, isActive } = req.body;
+
+    // ✅ FIX: Validate Dates
+    // Ensure Start Date is physically before End Date to prevent logical errors
+    if (new Date(startDate) >= new Date(endDate)) {
+        return res.status(400).json({ error: "Start Date must be before End Date" });
+    }
+
+    // 1. If this new semester is set to ACTIVE, deactivate ALL others first
+    if (isActive === true) {
+        await Semester.updateMany({}, { isActive: false });
+    }
+
+    // 2. Create the new Semester
+    const semester = await Semester.create({
+        name,
+        code,
+        academicYear,
+        startDate,
+        endDate,
+        isActive // If true, it is now the ONLY active one
+    });
+
+    res.status(201).json({ message: "Semester Created Successfully", semester });
+
+  } catch (err) {
+    console.error("Create Semester Error:", err);
+    res.status(500).json({ error: err.message });
   }
 };
