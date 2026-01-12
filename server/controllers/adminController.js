@@ -6,7 +6,8 @@ const Course = require("../models/Course");
 const Department = require("../models/Department");
 const CourseOffering = require("../models/CourseOffering");
 const Semester = require("../models/Semester");
-const Enrollment = require("../models/Enrollment"); 
+const Enrollment = require("../models/Enrollment");
+const Announcement = require("../models/Announcement"); // ✅ Added Import for saving notices
 const sendEmail = require("../utils/emailService");
 
 // =========================================================
@@ -271,34 +272,41 @@ exports.enrollStudent = async (req, res) => {
 };
 
 // =========================================================
-// 7. BROADCAST NOTICE (Targeted & Global)
+// 7. BROADCAST NOTICE (Targeted + Saved to DB)
 // =========================================================
 exports.broadcastNotice = async (req, res) => {
   try {
-    // Extract 'target' (e.g., "CSE-Semester-1" or "ALL")
     const { title, message, target } = req.body;
 
-    const io = req.app.get("socketio");
-    if (!io) return res.status(500).json({ message: "Socket.io not initialized" });
-
-    // Build the payload
-    const payload = {
+    // A. SAVE TO DATABASE (So it shows up in the Student Dashboard later)
+    await Announcement.create({
         title,
-        message,
-        time: new Date().toLocaleTimeString()
-    };
+        content: message,
+        targetAudience: target || "ALL",
+        date: new Date()
+    });
 
-    if (target && target !== "ALL") {
-        // 🎯 Send to Specific Room
-        io.to(target).emit("receive_notice", { ...payload, target });
-        console.log(`📢 Notice sent to room: ${target}`);
-    } else {
-        // 🌍 Send to Global
-        io.emit("receive_notice", { ...payload, target: "ALL" });
-        console.log(`📢 Global notice sent`);
+    // B. SEND REAL-TIME ALERT (Socket.io)
+    const io = req.app.get("socketio");
+    if (io) {
+        const payload = {
+            title,
+            message,
+            time: new Date().toLocaleTimeString()
+        };
+
+        if (target && target !== "ALL") {
+            // 🎯 Send to Specific Room
+            io.to(target).emit("receive_notice", { ...payload, target });
+            console.log(`📢 Notice sent to room: ${target}`);
+        } else {
+            // 🌍 Send to Global
+            io.emit("receive_notice", { ...payload, target: "ALL" });
+            console.log(`📢 Global notice sent`);
+        }
     }
 
-    res.json({ message: "📢 Notice Broadcasted Successfully!" });
+    res.json({ message: "📢 Notice Posted & Broadcasted Successfully!" });
 
   } catch (err) {
     console.error("Broadcast Error:", err);
