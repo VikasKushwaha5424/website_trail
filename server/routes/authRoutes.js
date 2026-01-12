@@ -1,43 +1,27 @@
 const express = require("express");
 const router = express.Router();
 
-// 1. Import Middleware (Security)
-const { protect, authorize } = require("../middleware/authMiddleware");
-
-// 2. Import Controller Functions
+// Import Controller Functions
 const { 
-  addUser, 
-  addDepartment, 
-  addCourse, 
-  assignFaculty,
-  broadcastNotice // <--- 🚀 NEW IMPORT (Level 4)
-} = require("../controllers/adminController");
+  registerUser, 
+  loginUser, 
+  googleLogin 
+} = require("../controllers/authController");
 
 // ==========================================
-// 🛡️ SECURITY: All Admin Routes are Protected
-// ==========================================
-// You can apply middleware to all routes at once if you want:
-// router.use(protect);
-// router.use(authorize("admin"));
-
-// ==========================================
-// 🚦 ROUTES
+// 🚦 PUBLIC ROUTES (No Login Required)
 // ==========================================
 
-// POST /api/admin/add-user (Student/Faculty)
-router.post("/add-user", protect, authorize("admin"), addUser);
+// POST /api/auth/register
+// Register a new user
+router.post("/register", registerUser);
 
-// POST /api/admin/add-department
-router.post("/add-department", protect, authorize("admin"), addDepartment);
+// POST /api/auth/login
+// Login with Username/Email & Password
+router.post("/login", loginUser);
 
-// POST /api/admin/add-course
-router.post("/add-course", protect, authorize("admin"), addCourse);
-
-// POST /api/admin/assign-faculty
-router.post("/assign-faculty", protect, authorize("admin"), assignFaculty);
-
-// 🚀 LEVEL 4: Broadcast Alert Route
-// POST /api/admin/broadcast
-router.post("/broadcast", protect, authorize("admin"), broadcastNotice);
+// POST /api/auth/google-login
+// Login with Google (Email only)
+router.post("/google-login", googleLogin);
 
 module.exports = router;

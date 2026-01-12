@@ -2,8 +2,14 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./config/db");
-const http = require("http"); // <--- NEW: Import HTTP module
-const { Server } = require("socket.io"); // <--- NEW: Import Socket.io
+const http = require("http");
+const { Server } = require("socket.io");
+
+// 🛡️ SECURITY PACKAGES
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const mongoSanitize = require("express-mongo-sanitize");
+const xss = require("xss-clean");
 
 // 1. Import Routes
 const authRoute = require("./routes/authRoutes"); 
@@ -39,9 +45,32 @@ require("./models/Hostel");
 // 5. Initialize Express
 const app = express();
 
-// 6. Middleware
-app.use(express.json()); 
+// ==========================================
+// 🛡️ SECURITY LAYER (Phase 1)
+// ==========================================
+
+// A. Set Security Headers (Helmet)
+app.use(helmet());
+
+// B. Body Parsing (MUST BE BEFORE SANITIZATION)
+app.use(express.json({ limit: "10kb" })); 
 app.use(cors()); 
+
+// C. Rate Limiting (Stops Spammers)
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per 15 mins
+  message: "Too many requests from this IP, please try again after 15 minutes."
+});
+app.use(limiter);
+
+// D. Data Sanitization (Prevents MongoDB Injection)
+app.use(mongoSanitize());
+
+// E. XSS Protection (Prevents HTML Injection)
+app.use(xss());
+
+// ==========================================
 
 // 7. Define Routes
 app.use("/api/auth", authRoute); 
@@ -60,49 +89,40 @@ app.get("/", (req, res) => {
 });
 
 // ==========================================
-// 🚀 LEVEL 4 UPGRADE: REAL-TIME SERVER
+// 🚀 REAL-TIME SERVER
 // ==========================================
 
-// A. Create HTTP Server (Wraps Express)
 const server = http.createServer(app);
 
-// B. Initialize Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000", // Allow your React Frontend to connect
+    origin: "http://localhost:3000",
     methods: ["GET", "POST"]
   }
 });
 
-// C. Listen for Connections
 io.on("connection", (socket) => {
   console.log(`⚡ New Client Connected: ${socket.id}`);
 
-  // Event: User Joins a "Room" (e.g., "Class-CS101")
-  // Event: User Joins a "Room"
   socket.on("join_room", (room) => {
     socket.join(room);
     console.log(`User ${socket.id} joined room: ${room}`);
-
-    // 🚀 NEW: Send a Real-Time Notification back to the room
+    
     io.to(room).emit("receive_notice", {
       title: "Connection Established",
-      message: `Welcome to the ${room} channel! You are now live.`,
+      message: `Welcome to the ${room} channel!`,
       time: new Date().toLocaleTimeString()
     });
   });
 
-  // Event: Disconnect
   socket.on("disconnect", () => {
     console.log("❌ Client Disconnected", socket.id);
   });
 });
 
-// Make 'io' accessible to our Routes (so Controllers can send alerts!)
 app.set("socketio", io);
 
-// 9. Start Server (Use 'server.listen', NOT 'app.listen')
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Mythic Server running on port ${PORT}`);
+  console.log(`🚀 Mythic Server (SECURE + FAST) running on port ${PORT}`);
 });
