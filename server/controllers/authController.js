@@ -51,8 +51,6 @@ exports.registerUser = async (req, res) => {
       // 6. Create StudentProfile immediately
       const nameParts = name.trim().split(" ");
       const firstName = nameParts[0];
-      
-      // ✅ FIX: Use empty string "" instead of "." for cleaner data
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
       await StudentProfile.create({
@@ -124,8 +122,66 @@ exports.loginUser = async (req, res) => {
 };
 
 // ==========================================
-// 3. GOOGLE LOGIN
+// 3. GOOGLE LOGIN (IMPLEMENTED)
 // ==========================================
 exports.googleLogin = async (req, res) => {
-    res.status(501).json({ message: "Not implemented yet" });
+  try {
+    const { email, name, googlePhotoUrl } = req.body;
+
+    // 1. Check if user exists
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // 2. If user exists, log them in
+      return res.json({
+        _id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id, user.role),
+      });
+    } else {
+      // 3. Auto-Register New Google User
+      
+      // Generate a random password since Google users don't use one
+      const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(generatedPassword, salt);
+
+      // Create Base User
+      user = await User.create({
+        name,
+        email,
+        passwordHash: hashedPassword,
+        role: "student", // Default role
+        profilePicture: googlePhotoUrl,
+        isActive: true
+      });
+
+      // Create Student Profile
+      const nameParts = name.trim().split(" ");
+      const firstName = nameParts[0];
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+      await StudentProfile.create({
+        userId: user._id,
+        firstName: firstName,
+        lastName: lastName,
+        currentStatus: "ACTIVE",
+        batchYear: new Date().getFullYear()
+      });
+
+      // Return Token
+      res.status(201).json({
+        _id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id, user.role),
+      });
+    }
+  } catch (error) {
+    console.error("Google Auth Error:", error);
+    res.status(500).json({ message: "Google Login failed on server" });
+  }
 };
