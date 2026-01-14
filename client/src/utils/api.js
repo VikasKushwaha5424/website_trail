@@ -1,18 +1,23 @@
-// client/src/utils/api.js
 import axios from "axios";
 
-// This points to your RUNNING Backend Server
-const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+// 1. Create the Axios Instance
+const api = axios.create({
+  baseURL: "http://localhost:5000/api", // Your Backend URL
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
-// This automatically attaches your Login Token to every request
-API.interceptors.request.use((req) => {
-  const user = JSON.parse(localStorage.getItem("user"));
-  if (user && user.token) {
-    req.headers.Authorization = `Bearer ${user.token}`;
-  }
-  return req;
-});
+// 2. The "Interceptor" (Automatically adds Token to every request)
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-export default API;
+export default api;

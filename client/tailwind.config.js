@@ -7,11 +7,25 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Batch 3 Analogous Palette
         brand: {
-          primary: '#B9CEFF',   // Color 1: Soft Blue
-          secondary: '#C7B9FF', // Color 2: Soft Violet
-          accent: '#EAB9FF',    // Color 3: Soft Orchid
-          dark: '#4A5568',      // Text color for contrast against light backgrounds
+          light: '#EAB9FF',  // Pinkish Purple
+          DEFAULT: '#C7B9FF', // Soft Purple
+          dark: '#B9CEFF',    // Soft Blue
+        }
+      },
+      animation: {
+        'fade-in': 'fadeIn 0.5s ease-out forwards',
+        'slide-up': 'slideUp 0.5s ease-out forwards',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         }
       }
     },

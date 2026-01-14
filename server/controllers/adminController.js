@@ -7,7 +7,7 @@ const Department = require("../models/Department");
 const CourseOffering = require("../models/CourseOffering");
 const Semester = require("../models/Semester");
 const Enrollment = require("../models/Enrollment");
-const Announcement = require("../models/Announcement"); // ✅ Added Import for saving notices
+const Announcement = require("../models/Announcement"); 
 const sendEmail = require("../utils/emailService");
 
 // =========================================================
@@ -171,12 +171,19 @@ exports.createSemester = async (req, res) => {
 };
 
 // =========================================================
-// 5. ASSIGN FACULTY TO COURSE (Race-Condition Free)
+// 5. ASSIGN FACULTY TO COURSE (Race-Condition Free + FIXED ID)
 // =========================================================
 exports.assignFaculty = async (req, res) => {
   try {
     const { facultyId, courseId, semesterId } = req.body;
     
+    // 🔍 FIX: Resolve 'User ID' (from frontend) to 'FacultyProfile ID'
+    // The CourseOffering model links to FacultyProfile, not User.
+    const facultyProfile = await FacultyProfile.findOne({ userId: facultyId });
+    if (!facultyProfile) {
+        return res.status(404).json({ message: "Faculty Profile not found for this user." });
+    }
+
     let targetSemesterId = semesterId;
 
     // If no ID provided, find the system's current active semester
@@ -193,7 +200,7 @@ exports.assignFaculty = async (req, res) => {
     // Create the assignment
     // (Ensure you have a unique compound index on { facultyId, courseId, semesterId } in your Model)
     await CourseOffering.create({ 
-        facultyId, 
+        facultyId: facultyProfile._id, // 👈 FIX: Use Profile ID
         courseId,
         semesterId: targetSemesterId 
     });
@@ -213,14 +220,22 @@ exports.assignFaculty = async (req, res) => {
 };
 
 // =========================================================
-// 6. ENROLL STUDENT IN A COURSE (Atomic & Safe)
+// 6. ENROLL STUDENT IN A COURSE (Atomic & Safe + FIXED ID)
 // =========================================================
 exports.enrollStudent = async (req, res) => {
   try {
     const { studentId, courseOfferingId } = req.body;
 
+    // 🔍 FIX: Resolve 'User ID' (from frontend) to 'StudentProfile ID'
+    const studentProfile = await StudentProfile.findOne({ userId: studentId });
+    if (!studentProfile) {
+         return res.status(404).json({ message: "Student Profile not found for this user." });
+    }
+    const targetStudentId = studentProfile._id;
+
     // 1. Prevent Duplicate Enrollment
-    const existingEnrollment = await Enrollment.findOne({ studentId, courseOfferingId });
+    // Use targetStudentId (Profile ID) not studentId (User ID)
+    const existingEnrollment = await Enrollment.findOne({ studentId: targetStudentId, courseOfferingId });
     if (existingEnrollment) {
       return res.status(400).json({ message: "Student is already enrolled in this class." });
     }
@@ -247,7 +262,7 @@ exports.enrollStudent = async (req, res) => {
     // 3. Create Enrollment Record
     try {
         const enrollment = await Enrollment.create({
-          studentId,
+          studentId: targetStudentId, // 👈 FIX: Use Profile ID
           courseOfferingId,
           status: "ENROLLED"
         });
@@ -283,7 +298,8 @@ exports.broadcastNotice = async (req, res) => {
         title,
         content: message,
         targetAudience: target || "ALL",
-        date: new Date()
+        date: new Date(),
+        createdBy: req.user.id // 👈 FIX: Added required 'createdBy' field
     });
 
     // B. SEND REAL-TIME ALERT (Socket.io)

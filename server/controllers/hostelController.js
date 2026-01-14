@@ -10,18 +10,19 @@ exports.allocateRoom = async (req, res) => {
     const hostel = await Hostel.findOne({ name: hostelName });
     if (!hostel) return res.status(404).json({ error: "Hostel not found" });
 
-    // 1. Initial Lookup: Check if room exists and if student is already inside
+    // 1. Initial Lookup: Check if room exists
     const room = await Room.findOne({ hostelId: hostel._id, roomNumber });
 
     if (!room) return res.status(404).json({ error: "Room not found" });
 
-    // Check duplication (Read-only check is fine here)
+    // 2. Check duplication (Basic JavaScript check for fast feedback)
+    // Note: The database query below acts as the final "source of truth" safeguard
     if (room.occupants.includes(studentId)) {
         return res.status(400).json({ error: "Student already in this room" });
     }
 
-    // 🔒 2. ATOMIC UPDATE: Check Capacity AND Push in one operation
-    // This prevents "Race Conditions" where two people book the last spot simultaneously
+    // 🔒 3. ATOMIC UPDATE: Check Capacity AND Add unique in one operation
+    // This prevents "Race Conditions" and ensures no duplicates
     const updatedRoom = await Room.findOneAndUpdate(
       { 
         _id: room._id, 
@@ -29,7 +30,8 @@ exports.allocateRoom = async (req, res) => {
         $expr: { $lt: [{ $size: "$occupants" }, "$capacity"] } 
       },
       { 
-        $push: { occupants: studentId } 
+        // 👇 FIX: Using $addToSet instead of $push prevents duplicates at the database level
+        $addToSet: { occupants: studentId } 
       },
       { new: true } // Return the updated document
     );

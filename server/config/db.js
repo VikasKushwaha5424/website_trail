@@ -2,8 +2,10 @@ const mongoose = require("mongoose");
 
 const connectDB = async () => {
   try {
-    // ⚠️ TEMPORARY FIX: Force connection to IPv4 to match seed.js
-    const conn = await mongoose.connect("mongodb://127.0.0.1:27017/college_portal");
+    // 1. Use Environment Variable, fallback to local IPv4 for dev safety
+    const connStr = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/college_portal";
+    
+    const conn = await mongoose.connect(connStr);
     
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {

@@ -1,5 +1,5 @@
-import React, { createContext, useState, useEffect } from "react";
-import axios from "axios";
+import { createContext, useState, useEffect } from "react";
+import { getCurrentUser, loginUser, logoutUser } from "../services/authService";
 
 export const AuthContext = createContext();
 
@@ -7,45 +7,34 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // 1. Check if user is already logged in (on page refresh)
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      // Ideally verify token with backend here, for now just loading
-      setLoading(false); 
-      // (Optional: Decode token to get user info if needed immediately)
-    } else {
-      setLoading(false);
+    const storedUser = getCurrentUser();
+    if (storedUser) {
+      setUser(storedUser);
     }
+    setLoading(false);
   }, []);
 
-  // 👉 CHANGED: Login now accepts rollNumber instead of email
+  // 2. Login Function
   const login = async (rollNumber, password) => {
-    const res = await axios.post("http://localhost:5000/api/auth/login", {
-      rollNumber, 
-      password,
-    });
-    
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data);
+    const data = await loginUser(rollNumber, password);
+    // Save to LocalStorage
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data));
+    setUser(data);
+    return data; // Return data for redirection logic
   };
 
-  const googleLogin = async (googleToken) => {
-    const res = await axios.post("http://localhost:5000/api/auth/google", {
-      googleToken,
-    });
-
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data);
-  };
-
+  // 3. Logout Function
   const logout = () => {
-    localStorage.removeItem("token");
+    logoutUser();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, googleLogin, logout, loading }}>
-      {children}
+    <AuthContext.Provider value={{ user, login, logout, loading }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 };

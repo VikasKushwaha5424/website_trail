@@ -1,49 +1,31 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, AuthContext } from "./context/AuthContext"; // ✅ Import AuthContext
-import { useContext } from "react"; // ✅ Import useContext hook
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { AuthProvider } from "./context/AuthContext";
+import Login from "./pages/auth/Login";
 
-// Import Pages
-import Login from "./pages/Login";
-import StudentDashboard from "./pages/StudentDashboard";
-
-// 🔒 Protected Route Component
-// Checks if user is logged in using the Global State (Context)
-const PrivateRoute = ({ children }) => {
-  const { user } = useContext(AuthContext); // ✅ Use Context (Reactive) instead of localStorage (Static)
-  
-  // Note: AuthProvider blocks rendering until initial loading is done, 
-  // so we don't need to check 'loading' here.
-  return user ? children : <Navigate to="/login" />;
-};
+// Placeholder Dashboards (Create these files later!)
+const AdminDashboard = () => <h1>Welcome Admin</h1>;
+const FacultyDashboard = () => <h1>Welcome Faculty</h1>;
+const StudentDashboard = () => <h1>Welcome Student</h1>;
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        {/* ToastContainer shows the popup alerts */}
-        <ToastContainer position="top-right" autoClose={3000} />
-        
+    <AuthProvider>
+      <Router>
         <Routes>
-          {/* Default Route: Redirect to Login */}
-          <Route path="/" element={<Navigate to="/login" />} />
-          
           {/* Public Route */}
           <Route path="/login" element={<Login />} />
+          
+          {/* Redirect Root to Login */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
 
-          {/* Protected Student Route */}
-          <Route 
-            path="/student-dashboard" 
-            element={
-              <PrivateRoute>
-                <StudentDashboard />
-              </PrivateRoute>
-            } 
-          />
+          {/* Protected Routes (We will add strict protection later) */}
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
+          <Route path="/student/dashboard" element={<StudentDashboard />} />
+          
         </Routes>
-      </AuthProvider>
-    </Router>
+      </Router>
+    </AuthProvider>
   );
 }
 

@@ -1,5 +1,8 @@
 const express = require("express");
 const dotenv = require("dotenv");
+// 1. Load Env Vars FIRST (Before routes/db)
+dotenv.config();
+
 const cors = require("cors");
 const connectDB = require("./config/db");
 const http = require("http");
@@ -9,10 +12,8 @@ const { Server } = require("socket.io");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("express-mongo-sanitize");
-// Note: 'xss' library is removed from direct use here to prevent the crash, 
-// as mongoSanitize handles the database layer security.
 
-// 1. Import Routes
+// 2. Import Routes
 const authRoute = require("./routes/authRoutes"); 
 const facultyRoute = require("./routes/faculty"); 
 const adminRoute = require("./routes/admin"); 
@@ -23,13 +24,10 @@ const feeRoute = require("./routes/feeRoutes");
 const timetableRoute = require("./routes/timetableRoutes");
 const hostelRoute = require("./routes/hostelRoutes");
 
-// 2. Load Environment Variables
-dotenv.config();
-
 // 3. Connect to Database
 connectDB();
 
-// 4. Register Models
+// 4. Register Models (Good practice to ensure they are registered)
 require("./models/User");
 require("./models/Department");
 require("./models/Course");
@@ -50,26 +48,19 @@ const app = express();
 // 🛡️ SECURITY LAYER
 // ==========================================
 
-// A. Set Security Headers (Helmet)
 app.use(helmet());
-
-// B. Body Parsing (MUST BE BEFORE SANITIZATION)
 app.use(express.json({ limit: "10kb" })); 
 app.use(cors()); 
 
-// C. Rate Limiting (Stops Spammers)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per 15 mins
+  windowMs: 15 * 60 * 1000, 
+  max: 100, 
   message: "Too many requests from this IP, please try again after 15 minutes."
 });
 app.use(limiter);
 
-// D. Data Sanitization (Prevents MongoDB Injection)
-app.use(mongoSanitize()); 
-
-// ❌ REMOVED: The manual 'sanitizeData' middleware that caused the crash.
-// mongoSanitize() above is sufficient for protecting the DB.
+// ❌ COMMENTED OUT TO FIX CRASH (Incompatible with Express 5)
+// app.use(mongoSanitize()); 
 
 // ==========================================
 
@@ -89,13 +80,9 @@ app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-// ==========================================
-// 9. GLOBAL ERROR HANDLER (Must be last)
-// ==========================================
+// 9. GLOBAL ERROR HANDLER
 app.use((err, req, res, next) => {
-  console.error(err.stack); // Log the error stack for debugging
-  
-  // Return a clean JSON error response
+  console.error(err.stack); 
   res.status(500).json({ 
     message: "Internal Server Error", 
     error: process.env.NODE_ENV === "development" ? err.message : "Something went wrong"
@@ -103,22 +90,22 @@ app.use((err, req, res, next) => {
 });
 
 // ==========================================
-// 🚀 REAL-TIME SERVER (Updated for Deployment)
+// 🚀 REAL-TIME SERVER
 // ==========================================
 
 const server = http.createServer(app);
 
-// Define allowed origins (Local + Production)
 const allowedOrigins = [
-  "http://localhost:3000",          // Local React
-  process.env.CLIENT_URL            // Production React (e.g., https://my-app.vercel.app)
-].filter(Boolean);                  // Remove undefined values if env is missing
+  "http://localhost:3000",
+  "http://localhost:5173", // Added Vite Default Port
+  process.env.CLIENT_URL
+].filter(Boolean);
 
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"],
-    credentials: true               // Required for cookies/sessions
+    credentials: true
   }
 });
 
@@ -128,12 +115,6 @@ io.on("connection", (socket) => {
   socket.on("join_room", (room) => {
     socket.join(room);
     console.log(`User ${socket.id} joined room: ${room}`);
-    
-    io.to(room).emit("receive_notice", {
-        title: "Connection Established",
-        message: `Welcome to the ${room} channel!`,
-        time: new Date().toLocaleTimeString()
-    });
   });
 
   socket.on("disconnect", () => {
@@ -145,6 +126,6 @@ app.set("socketio", io);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Mythic Server (SECURE + FAST) running on port ${PORT}`);
+  console.log(`🚀 Mythic Server running on port ${PORT}`);
   console.log(`📡 Socket.io allowed origins:`, allowedOrigins); 
 });
