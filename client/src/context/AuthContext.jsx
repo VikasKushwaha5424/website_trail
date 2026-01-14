@@ -1,5 +1,5 @@
-// client/src/context/AuthContext.jsx
-import { createContext, useState, useEffect } from "react";
+import React, { createContext, useState, useEffect } from "react";
+import axios from "axios";
 
 export const AuthContext = createContext();
 
@@ -7,31 +7,45 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. Check if user is already logged in when the app loads
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const token = localStorage.getItem("token");
+    if (token) {
+      // Ideally verify token with backend here, for now just loading
+      setLoading(false); 
+      // (Optional: Decode token to get user info if needed immediately)
+    } else {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
-  // 2. Login Function
-  const login = (userData) => {
-    setUser(userData);
-    localStorage.setItem("user", JSON.stringify(userData));
+  // 👉 CHANGED: Login now accepts rollNumber instead of email
+  const login = async (rollNumber, password) => {
+    const res = await axios.post("http://localhost:5000/api/auth/login", {
+      rollNumber, 
+      password,
+    });
+    
+    localStorage.setItem("token", res.data.token);
+    setUser(res.data);
   };
 
-  // 3. Logout Function
+  const googleLogin = async (googleToken) => {
+    const res = await axios.post("http://localhost:5000/api/auth/google", {
+      googleToken,
+    });
+
+    localStorage.setItem("token", res.data.token);
+    setUser(res.data);
+  };
+
   const logout = () => {
+    localStorage.removeItem("token");
     setUser(null);
-    localStorage.removeItem("user");
-    window.location.href = "/login"; // Force redirect
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
-      {!loading && children}
+    <AuthContext.Provider value={{ user, login, googleLogin, logout, loading }}>
+      {children}
     </AuthContext.Provider>
   );
 };

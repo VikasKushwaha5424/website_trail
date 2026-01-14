@@ -1,145 +1,105 @@
-import { useState, useContext } from "react";
+import React, { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import API from "../utils/api";
-import { toast } from "react-toastify";
-
-// Firebase Imports
-import { auth, googleProvider } from "../config/firebase";
-import { signInWithPopup } from "firebase/auth";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const { login } = useContext(AuthContext);
+  const { login, googleLogin } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
 
-  // Handle Standard Login
+  // 👉 CHANGED: State now stores 'rollNumber' instead of 'email'
+  const [formData, setFormData] = useState({
+    rollNumber: "",
+    password: "",
+  });
+  const [error, setError] = useState(null);
+
+  const { rollNumber, password } = formData;
+
+  const handleChange = (e) =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setError(null);
     try {
-      const { data } = await API.post("/auth/login", { email, password });
-      handleLoginSuccess(data);
+      // 👉 Send rollNumber + password
+      await login(rollNumber, password);
+      navigate("/dashboard");
     } catch (err) {
-      toast.error(err.response?.data?.message || "Login Failed");
-    } finally {
-      setLoading(false);
+      setError(err.response?.data?.message || "Login failed");
     }
   };
 
-  // ==========================================
-  // 🔐 SECURE GOOGLE LOGIN
-  // ==========================================
-  const handleGoogleLogin = async () => {
+  const handleGoogleSuccess = async (credentialResponse) => {
     try {
-      // 1. Trigger Google Popup
-      const result = await signInWithPopup(auth, googleProvider);
-      
-      // 2. GET THE SECURITY TOKEN (This proves identity)
-      const token = await result.user.getIdToken(); 
-
-      // 3. SEND TOKEN TO SERVER
-      // The server will verify this token and check if the email exists in the DB.
-      const { data } = await API.post("/auth/google-login", { 
-        googleToken: token 
-      });
-
-      handleLoginSuccess(data);
-
-    } catch (error) {
-      console.error("Google Login Error:", error);
-      
-      // Show the specific error from the backend (e.g., "Email not registered")
-      const serverMessage = error.response?.data?.message;
-      toast.error(serverMessage || "Google Login Failed");
-    }
-  };
-
-  // Centralized Success Handler
-  const handleLoginSuccess = (userData) => {
-    login(userData);
-    toast.success(`Welcome back, ${userData.name}!`);
-    
-    // Role-based Redirect
-    switch (userData.role) {
-      case "student": navigate("/student-dashboard"); break;
-      case "admin": navigate("/admin-dashboard"); break;
-      case "faculty": navigate("/faculty-dashboard"); break;
-      default: navigate("/");
+      // 👉 Send Google Token to backend
+      await googleLogin(credentialResponse.credential);
+      navigate("/dashboard");
+    } catch (err) {
+      setError("Google Login Failed. Ensure your email is registered.");
     }
   };
 
   return (
-    <div className="flex h-screen w-full bg-gray-50">
-      
-      {/* LEFT SIDE - Branding Area (Uses Batch 3 Colors) */}
-      <div className="hidden md:flex w-1/2 bg-gradient-to-br from-brand-primary via-brand-secondary to-brand-accent flex-col justify-center items-center text-white p-12">
-        <div className="bg-white/20 backdrop-blur-md p-8 rounded-2xl shadow-lg border border-white/30 text-center">
-          <h1 className="text-4xl font-bold mb-4 text-brand-dark">College Portal</h1>
-          <p className="text-lg text-gray-800">
-            Manage your academics, attendance, and fees in one place.
-          </p>
-        </div>
-      </div>
+    <div className="flex justify-center items-center h-screen bg-gray-100">
+      <div className="bg-white p-8 rounded shadow-md w-96">
+        <h2 className="text-2xl font-bold mb-6 text-center">College Portal Login</h2>
+        
+        {error && <div className="bg-red-100 text-red-700 p-2 mb-4 rounded">{error}</div>}
 
-      {/* RIGHT SIDE - Login Form */}
-      <div className="w-full md:w-1/2 flex justify-center items-center p-8 bg-white">
-        <div className="max-w-md w-full">
-          <h2 className="text-3xl font-bold mb-2 text-gray-800">Welcome Back</h2>
-          <p className="text-gray-500 mb-8">Please enter your details to sign in.</p>
+        <form onSubmit={handleSubmit}>
+          {/* 👉 CHANGED: Input for Roll Number */}
+          <div className="mb-4">
+            <label className="block text-gray-700">Roll Number</label>
+            <input
+              type="text"
+              name="rollNumber"
+              value={rollNumber}
+              onChange={handleChange}
+              className="w-full p-2 border border-gray-300 rounded mt-1"
+              placeholder="e.g., 2026000001"
+              required
+            />
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-              <input
-                className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition outline-none"
-                type="email"
-                placeholder="student@college.edu"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition outline-none"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            
-            <button 
-              disabled={loading}
-              className="w-full bg-brand-secondary hover:bg-brand-accent text-brand-dark font-bold p-3 rounded-lg transition duration-300 shadow-md transform active:scale-95"
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
+          <div className="mb-6">
+            <label className="block text-gray-700">Password</label>
+            <input
+              type="password"
+              name="password"
+              value={password}
+              onChange={handleChange}
+              className="w-full p-2 border border-gray-300 rounded mt-1"
+              placeholder="********"
+              required
+            />
+          </div>
 
-          <div className="flex items-center my-6">
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition"
+          >
+            Login with Roll Number
+          </button>
+        </form>
+
+        <div className="mt-4">
+          <div className="relative flex py-2 items-center">
             <div className="flex-grow border-t border-gray-300"></div>
-            <span className="px-4 text-gray-500 text-sm">Or continue with</span>
+            <span className="flex-shrink-0 mx-4 text-gray-400">OR</span>
             <div className="flex-grow border-t border-gray-300"></div>
           </div>
 
-          <button 
-            onClick={handleGoogleLogin}
-            type="button"
-            className="w-full border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-semibold p-3 rounded-lg flex items-center justify-center transition gap-3"
-          >
-            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5" alt="Google" />
-            Sign in with Google
-          </button>
-
-          <p className="mt-6 text-center text-sm text-gray-600">
-            Don't have an account? <span className="text-brand-secondary font-bold cursor-pointer hover:underline">Contact Admin</span>
-          </p>
+          {/* Google Login Button */}
+          <div className="flex justify-center mt-2">
+            <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError("Google Login Failed")}
+              />
+            </GoogleOAuthProvider>
+          </div>
         </div>
       </div>
     </div>
