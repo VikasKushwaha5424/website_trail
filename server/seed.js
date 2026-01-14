@@ -1,36 +1,55 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-require('dotenv').config(); // Load .env file
+const dotenv = require('dotenv');
+
+// 1. LOAD ENV VARS CORRECTLY
+dotenv.config(); 
 
 const User = require('./models/User');
 const StudentProfile = require('./models/StudentProfile');
 const Department = require('./models/Department');
 
-// 🔍 DIAGNOSTIC: Check where we are connecting!
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/college_portal';
+// 2. DIAGNOSTIC LOGGING
+const MONGO_URI = process.env.MONGO_URI;
 console.log("==========================================");
-console.log(`🔌 CONNECTING TO: ${MONGO_URI}`);
+if (!MONGO_URI) {
+    console.error("❌ ERROR: MONGO_URI is undefined. Check your .env file!");
+    process.exit(1);
+}
+console.log(`🔌 CONNECTING TO DATABASE...`);
 console.log("==========================================");
 
 const seedData = async () => {
   try {
+    // 3. CONNECT
     await mongoose.connect(MONGO_URI);
     console.log('✅ Connected to MongoDB.');
 
-    // CLEAR OLD DATA
-    await mongoose.connection.db.dropDatabase();
-    console.log('🗑️  Old database dropped (Clean Slate).');
+    // 4. CLEAR OLD DATA
+    await User.deleteMany({});
+    await StudentProfile.deleteMany({});
+    await Department.deleteMany({});
+    console.log('🗑️  Old database cleared.');
 
-    const passwordHash = await bcrypt.hash("password123", 10);
-    const dept = await Department.create({ name: 'Computer Science', code: 'CSE', isActive: true });
+    // 5. PREPARE DATA
+    const hashedPassword = await bcrypt.hash("password123", 10);
+    
+    // Create Department
+    const dept = await Department.create({ 
+        name: 'Computer Science', 
+        code: 'CSE', 
+        isActive: true 
+    });
+    console.log('✅ Department created.');
 
-    // 1️⃣ CREATE STUDENT (Login: 2026000001 / password123)
+    // --- CREATE STUDENT ---
     const student = await User.create({
       name: "Rohan Student",
       email: "rohan.student@college.edu",
       role: "student",
       rollNumber: "2026000001",
-      passwordHash,
+      // 👇 FIX: Using the exact key 'passwordHash' from your Schema
+      passwordHash: hashedPassword, 
       isActive: true
     });
 
@@ -41,25 +60,29 @@ const seedData = async () => {
       departmentId: dept._id,
       batchYear: 2026
     });
+    console.log('✅ Student User & Profile created.');
 
-    // 2️⃣ CREATE YOUR GOOGLE USER (For Testing Google Login)
-    // Replace this email with your REAL Google email if different
+    // --- CREATE ADMIN (You) ---
     const googleUser = await User.create({
         name: "Vikas Google",
         email: "vikaskushwaha5424@gmail.com", 
-        role: "admin", // Making you admin so you can see everything
+        role: "admin", 
         rollNumber: "ADMIN001",
-        passwordHash,
+        // 👇 FIX: Using the exact key 'passwordHash'
+        passwordHash: hashedPassword,
         isActive: true
     });
+    console.log('✅ Admin User created.');
 
-    console.log("\n✅ SEEDING COMPLETE!");
-    console.log("------------------------------------------");
+    console.log("\n------------------------------------------");
+    console.log("🎉 SEEDING COMPLETE!");
     console.log("👉 Login 1 (Manual):  ID: 2026000001   | Pass: password123");
-    console.log("👉 Login 2 (Google):  Use 'vikaskushwaha5424@gmail.com' button");
+    console.log("👉 Login 2 (Google):  Use 'vikaskushwaha5424@gmail.com'");
     console.log("------------------------------------------");
 
-    process.exit();
+    await mongoose.connection.close();
+    process.exit(0);
+
   } catch (error) {
     console.error("❌ Seed Error:", error);
     process.exit(1);
