@@ -1,3 +1,4 @@
+const mongoose = require("mongoose"); // Required for Transactions
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const StudentProfile = require("../models/StudentProfile"); 
@@ -11,7 +12,9 @@ const Announcement = require("../models/Announcement");
 const sendEmail = require("../utils/emailService");
 const { Fee, Payment } = require("../models/Fee");
 const Timetable = require("../models/Timetable"); 
-const Classroom = require("../models/Classroom"); 
+const Classroom = require("../models/Classroom");
+const ExamSchedule = require("../models/ExamSchedule"); 
+const Attendance = require("../models/Attendance");
 
 // =========================================================
 // 1. ADD USER (Robust: Handles Student/Faculty + Rollback)
@@ -131,7 +134,19 @@ exports.addDepartment = async (req, res) => {
 };
 
 // =========================================================
-// 3. ADD COURSE (Subject)
+// 3. GET ALL DEPARTMENTS
+// =========================================================
+exports.getAllDepartments = async (req, res) => {
+  try {
+    const depts = await Department.find();
+    res.json(depts); // Returns array directly [ {name, code}, ... ]
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 4. ADD COURSE (Subject)
 // =========================================================
 exports.addCourse = async (req, res) => {
   try {
@@ -145,7 +160,7 @@ exports.addCourse = async (req, res) => {
 };
 
 // =========================================================
-// 4. CREATE SEMESTER (Handles "Single Active" Rule)
+// 5. CREATE SEMESTER (Handles "Single Active" Rule)
 // =========================================================
 exports.createSemester = async (req, res) => {
   try {
@@ -174,7 +189,7 @@ exports.createSemester = async (req, res) => {
 };
 
 // =========================================================
-// 5. ASSIGN FACULTY TO COURSE (Race-Condition Free + FIXED ID)
+// 6. ASSIGN FACULTY TO COURSE (Race-Condition Free + FIXED ID)
 // =========================================================
 exports.assignFaculty = async (req, res) => {
   try {
@@ -223,7 +238,7 @@ exports.assignFaculty = async (req, res) => {
 };
 
 // =========================================================
-// 6. ENROLL STUDENT IN A COURSE (Atomic & Safe + FIXED ID)
+// 7. ENROLL STUDENT IN A COURSE (Atomic & Safe + FIXED ID)
 // =========================================================
 exports.enrollStudent = async (req, res) => {
   try {
@@ -290,7 +305,7 @@ exports.enrollStudent = async (req, res) => {
 };
 
 // =========================================================
-// 7. BROADCAST NOTICE (Targeted + Saved to DB)
+// 8. BROADCAST NOTICE (Targeted + Saved to DB)
 // =========================================================
 exports.broadcastNotice = async (req, res) => {
   try {
@@ -334,7 +349,7 @@ exports.broadcastNotice = async (req, res) => {
 };
 
 // =========================================================
-// 8. GET ALL USERS (Pagination + Filtering)
+// 9. GET ALL USERS (Pagination + Filtering)
 // =========================================================
 exports.getAllUsers = async (req, res) => {
   try {
@@ -376,7 +391,7 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // =========================================================
-// 9. GET ALL COURSES (With Department Details)
+// 10. GET ALL COURSES (With Department Details)
 // =========================================================
 exports.getAllCourses = async (req, res) => {
   try {
@@ -397,7 +412,7 @@ exports.getAllCourses = async (req, res) => {
 };
 
 // =========================================================
-// 10. GET DASHBOARD STATS (Widgets Data)
+// 11. GET DASHBOARD STATS (Widgets Data)
 // =========================================================
 exports.getDashboardStats = async (req, res) => {
   try {
@@ -425,7 +440,7 @@ exports.getDashboardStats = async (req, res) => {
 };
 
 // =========================================================
-// 11. UPDATE USER (Handles User + Profile split)
+// 12. UPDATE USER (Handles User + Profile split)
 // =========================================================
 exports.updateUser = async (req, res) => {
   try {
@@ -466,7 +481,7 @@ exports.updateUser = async (req, res) => {
 };
 
 // =========================================================
-// 12. DELETE USER (The Cleanup Operations 🧹)
+// 13. DELETE USER (The Cleanup Operations 🧹)
 // =========================================================
 exports.deleteUser = async (req, res) => {
   try {
@@ -529,7 +544,7 @@ exports.deleteUser = async (req, res) => {
 };
 
 // =========================================================
-// 13. UPDATE COURSE
+// 14. UPDATE COURSE
 // =========================================================
 exports.updateCourse = async (req, res) => {
   try {
@@ -550,7 +565,7 @@ exports.updateCourse = async (req, res) => {
 };
 
 // =========================================================
-// 14. DELETE COURSE (Safe Delete)
+// 15. DELETE COURSE (Safe Delete)
 // =========================================================
 exports.deleteCourse = async (req, res) => {
   try {
@@ -570,7 +585,7 @@ exports.deleteCourse = async (req, res) => {
 };
 
 // =========================================================
-// 15. CREATE FEE STRUCTURE (Bulk Assign Fees)
+// 16. CREATE FEE STRUCTURE (Bulk Assign Fees)
 // =========================================================
 exports.createFeeStructure = async (req, res) => {
   try {
@@ -619,7 +634,7 @@ exports.createFeeStructure = async (req, res) => {
 };
 
 // =========================================================
-// 16. GET PENDING PAYMENTS (For Verification)
+// 17. GET PENDING PAYMENTS (For Verification)
 // =========================================================
 exports.getPendingPayments = async (req, res) => {
   try {
@@ -635,7 +650,7 @@ exports.getPendingPayments = async (req, res) => {
 };
 
 // =========================================================
-// 17. VERIFY PAYMENT (Approve/Reject)
+// 18. VERIFY PAYMENT (Approve/Reject)
 // =========================================================
 exports.verifyPayment = async (req, res) => {
   const session = await mongoose.startSession();
@@ -690,7 +705,7 @@ exports.verifyPayment = async (req, res) => {
 };
 
 // =========================================================
-// 18. FEE STATISTICS (Extra Feature)
+// 19. FEE STATISTICS (Extra Feature)
 // =========================================================
 exports.getFeeStats = async (req, res) => {
   try {
@@ -764,7 +779,7 @@ const checkClash = async ({ day, startTime, endTime, roomNumber, semesterId, fac
 };
 
 // =========================================================
-// 19. CREATE TIMETABLE ENTRY (Master Schedule)
+// 20. CREATE TIMETABLE ENTRY (Master Schedule)
 // =========================================================
 exports.createTimetableEntry = async (req, res) => {
   try {
@@ -803,7 +818,7 @@ exports.createTimetableEntry = async (req, res) => {
 };
 
 // =========================================================
-// 20. GET TIMETABLE (Filtered View)
+// 21. GET TIMETABLE (Filtered View)
 // =========================================================
 exports.getTimetable = async (req, res) => {
   try {
@@ -831,7 +846,7 @@ exports.getTimetable = async (req, res) => {
 };
 
 // =========================================================
-// 21. DELETE TIMETABLE SLOT
+// 22. DELETE TIMETABLE SLOT
 // =========================================================
 exports.deleteTimetableEntry = async (req, res) => {
   try {
@@ -844,7 +859,7 @@ exports.deleteTimetableEntry = async (req, res) => {
 };
 
 // =========================================================
-// 22. FIND FREE ROOMS (The "Free Slot Finder")
+// 23. FIND FREE ROOMS (The "Free Slot Finder")
 // =========================================================
 exports.findFreeRooms = async (req, res) => {
   try {
@@ -874,6 +889,211 @@ exports.findFreeRooms = async (req, res) => {
         freeRooms 
     });
 
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 24. CLASSROOM MANAGEMENT (The Missing Piece!)
+// =========================================================
+exports.addClassroom = async (req, res) => {
+  try {
+    const { roomNumber, capacity, type } = req.body; 
+    // Type could be "LECTURE_HALL", "LAB", "SEMINAR_HALL"
+    const room = await Classroom.create({ roomNumber, capacity, type, isActive: true });
+    res.status(201).json(room);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getAllClassrooms = async (req, res) => {
+  try {
+    const rooms = await Classroom.find().sort({ roomNumber: 1 });
+    res.status(200).json(rooms);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.deleteClassroom = async (req, res) => {
+  try {
+    await Classroom.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: "Room deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 🕵️ HELPER: EXAM CLASH DETECTION (Specific Date)
+// =========================================================
+const checkExamClash = async ({ date, startTime, endTime, roomNumber, semesterId, facultyId }) => {
+  const getMinutes = (timeStr) => {
+    const [h, m] = timeStr.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const start = getMinutes(startTime);
+  const end = getMinutes(endTime);
+
+  // Check specific DATE in ExamSchedule collection
+  // Note: We compare dates using ISO strings to ignore time components if needed, 
+  // but usually strict Date matching is fine if frontend sends YYYY-MM-DD 00:00:00.
+  // Here we assume 'date' is passed correctly as a Date object or ISO string.
+  
+  const query = {
+    date: new Date(date), // Ensure it matches the stored format
+    semesterId: semesterId
+  };
+
+  const existingExams = await ExamSchedule.find(query).populate("courseOfferingId");
+
+  for (const entry of existingExams) {
+    const eStart = getMinutes(entry.startTime);
+    const eEnd = getMinutes(entry.endTime);
+
+    // Overlap Check
+    if (start < eEnd && end > eStart) {
+      if (entry.roomNumber === roomNumber) {
+        throw new Error(`Room ${roomNumber} is already booked for an exam on this date.`);
+      }
+      if (entry.courseOfferingId.facultyId.toString() === facultyId.toString()) {
+        throw new Error(`Faculty is already proctoring an exam at this time.`);
+      }
+      throw new Error(`This Semester already has an exam scheduled at this time.`);
+    }
+  }
+  return false; 
+};
+
+// =========================================================
+// 25. EXAM SCHEDULER ACTIONS
+// =========================================================
+
+exports.addExamSlot = async (req, res) => {
+  try {
+    const { courseOfferingId, date, startTime, endTime, roomNumber } = req.body;
+
+    const offering = await CourseOffering.findById(courseOfferingId);
+    if (!offering) return res.status(404).json({ message: "Course Offering not found" });
+
+    // Run Exam Clash Check
+    await checkExamClash({
+      date,
+      startTime,
+      endTime,
+      roomNumber,
+      semesterId: offering.semesterId,
+      facultyId: offering.facultyId
+    });
+
+    const exam = await ExamSchedule.create({
+      courseOfferingId,
+      semesterId: offering.semesterId,
+      date,
+      startTime,
+      endTime,
+      roomNumber
+    });
+
+    res.status(201).json({ message: "Exam Scheduled", exam });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+exports.getExamSchedule = async (req, res) => {
+  try {
+    const { date } = req.query;
+    // Filter by specific date if provided
+    const query = date ? { date: new Date(date) } : {};
+
+    const exams = await ExamSchedule.find(query)
+      .populate({
+         path: "courseOfferingId",
+         populate: [
+            { path: "courseId", select: "name code" },
+            { path: "facultyId", select: "firstName lastName" }
+         ]
+      })
+      .sort({ date: 1, startTime: 1 });
+
+    res.status(200).json(exams);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.deleteExamSlot = async (req, res) => {
+  try {
+    await ExamSchedule.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: "Exam slot deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 26. ATTENDANCE OVERSIGHT (Admin View & Fix)
+// =========================================================
+
+// A. View Attendance for a specific Class & Date
+exports.getAdminAttendance = async (req, res) => {
+  try {
+    const { courseOfferingId, date } = req.query;
+    
+    // 1. Get the list of students enrolled in this course
+    // (We need this to show "Absent" students who have NO record)
+    const enrollment = await require("../models/Enrollment").find({ courseOfferingId })
+      .populate("studentId", "firstName lastName rollNumber");
+
+    if (!enrollment.length) return res.json([]);
+
+    // 2. Get existing attendance records for this date
+    // Note: Date passing from frontend should be handled carefully (YYYY-MM-DD)
+    const startOfDay = new Date(date); startOfDay.setHours(0,0,0,0);
+    const endOfDay = new Date(date); endOfDay.setHours(23,59,59,999);
+
+    const records = await Attendance.find({
+      courseOfferingId,
+      date: { $gte: startOfDay, $lte: endOfDay }
+    });
+
+    // 3. Merge Data (Combine Enrolled List with Attendance Status)
+    const mergedData = enrollment.map(enrol => {
+      const record = records.find(r => r.studentId.toString() === enrol.studentId._id.toString());
+      return {
+        student: enrol.studentId,
+        status: record ? record.status : "NOT_MARKED",
+        recordId: record ? record._id : null,
+        isLocked: record ? record.isLocked : false
+      };
+    });
+
+    res.json(mergedData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// B. Override/Fix Attendance (Admin Power)
+exports.updateAttendanceOverride = async (req, res) => {
+  try {
+    const { studentId, courseOfferingId, date, status } = req.body;
+
+    // Admin can update/upsert even if it was "Locked" by faculty
+    const record = await Attendance.findOneAndUpdate(
+      { studentId, courseOfferingId, date },
+      { 
+        status, 
+        markedBy: req.user.id, // Track that Admin changed it
+        isLocked: true // Keep it locked
+      },
+      { new: true, upsert: true }
+    );
+
+    res.json({ message: "Attendance Updated", record });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

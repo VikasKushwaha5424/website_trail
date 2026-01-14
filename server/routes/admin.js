@@ -18,6 +18,7 @@ const {
   // B. View / Read Data
   getAllUsers,
   getAllCourses,
+  getAllDepartments,
   getDashboardStats,
 
   // C. Update / Delete Maintenance
@@ -37,8 +38,22 @@ const {
   getTimetable,
   deleteTimetableEntry,
 
-  // F. Room Management
-  findFreeRooms
+  // F. Room Logic (Finding Free Slots)
+  findFreeRooms,
+
+  // G. Classroom Inventory (Physical Rooms)
+  addClassroom,
+  getAllClassrooms,
+  deleteClassroom,
+
+  // H. Exam Scheduler
+  addExamSlot,
+  getExamSchedule,
+  deleteExamSlot,
+
+  // I. Attendance Oversight 👈 ADDED HERE
+  getAdminAttendance,
+  updateAttendanceOverride
 
 } = require("../controllers/adminController");
 
@@ -80,6 +95,9 @@ router.get("/users", protect, authorize("admin"), getAllUsers);
 
 // GET /api/admin/courses
 router.get("/courses", protect, authorize("admin"), getAllCourses);
+
+// GET /api/admin/departments
+router.get("/departments", protect, authorize("admin"), getAllDepartments);
 
 // GET /api/admin/stats (Dashboard Widgets)
 router.get("/stats", protect, authorize("admin"), getDashboardStats);
@@ -130,11 +148,47 @@ router.post("/timetable", protect, authorize("admin"), createTimetableEntry);
 router.delete("/timetable/:id", protect, authorize("admin"), deleteTimetableEntry);
 
 // ------------------------------------------
-// F. ROOM MANAGEMENT ROUTES
+// F. ROOM LOGIC ROUTES
 // ------------------------------------------
 
 // POST /api/admin/find-free-rooms
 // Body: { "dayOfWeek": "MONDAY", "startTime": 900, "endTime": 1000 }
 router.post("/find-free-rooms", protect, authorize("admin"), findFreeRooms);
+
+// ------------------------------------------
+// G. CLASSROOM INVENTORY ROUTES
+// ------------------------------------------
+
+// POST /api/admin/add-classroom (Create Physical Room)
+router.post("/add-classroom", protect, authorize("admin"), addClassroom);
+
+// GET /api/admin/classrooms (List All Rooms)
+router.get("/classrooms", protect, authorize("admin"), getAllClassrooms);
+
+// DELETE /api/admin/delete-classroom/:id
+router.delete("/delete-classroom/:id", protect, authorize("admin"), deleteClassroom);
+
+// ------------------------------------------
+// H. EXAM SCHEDULER ROUTES
+// ------------------------------------------
+
+// POST /api/admin/exams (Schedule Exam + Clash Check)
+router.post("/exams", protect, authorize("admin"), addExamSlot);
+
+// GET /api/admin/exams?date=YYYY-MM-DD
+router.get("/exams", protect, authorize("admin"), getExamSchedule);
+
+// DELETE /api/admin/exams/:id
+router.delete("/exams/:id", protect, authorize("admin"), deleteExamSlot);
+
+// ------------------------------------------
+// I. ATTENDANCE ROUTES 👈 ADDED HERE
+// ------------------------------------------
+
+// GET /api/admin/attendance?courseOfferingId=...&date=...
+router.get("/attendance", protect, authorize("admin"), getAdminAttendance);
+
+// POST /api/admin/attendance/fix (Admin Override)
+router.post("/attendance/fix", protect, authorize("admin"), updateAttendanceOverride);
 
 module.exports = router;

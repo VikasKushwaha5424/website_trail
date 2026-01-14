@@ -23,6 +23,7 @@ const courseRoute = require("./routes/courseRoutes");
 const feeRoute = require("./routes/feeRoutes");
 const timetableRoute = require("./routes/timetableRoutes");
 const hostelRoute = require("./routes/hostelRoutes");
+const marksRoute = require("./routes/marksRoutes"); // 👈 ADDED: Import Marks Route
 
 // 3. Connect to Database
 connectDB();
@@ -40,6 +41,7 @@ require("./models/Marks");
 require("./models/Fee"); 
 require("./models/Timetable");
 require("./models/Hostel");
+require("./models/ExamSchedule"); // Ensure ExamSchedule is also registered if used
 
 // 5. Initialize Express
 const app = express();
@@ -74,6 +76,7 @@ app.use("/api/courses", courseRoute);
 app.use("/api/fees", feeRoute);
 app.use("/api/timetable", timetableRoute);
 app.use("/api/hostel", hostelRoute);
+app.use("/api/marks", marksRoute); // 👈 ADDED: Register Marks Route
 
 // 8. Basic Test Route
 app.get("/", (req, res) => {
