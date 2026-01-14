@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, AuthContext } from "./context/AuthContext"; // ✅ Import AuthContext
+import { useContext } from "react"; // ✅ Import useContext hook
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -8,9 +9,12 @@ import Login from "./pages/Login";
 import StudentDashboard from "./pages/StudentDashboard";
 
 // 🔒 Protected Route Component
-// Checks if user is logged in before letting them see the page
+// Checks if user is logged in using the Global State (Context)
 const PrivateRoute = ({ children }) => {
-  const user = JSON.parse(localStorage.getItem("user"));
+  const { user } = useContext(AuthContext); // ✅ Use Context (Reactive) instead of localStorage (Static)
+  
+  // Note: AuthProvider blocks rendering until initial loading is done, 
+  // so we don't need to check 'loading' here.
   return user ? children : <Navigate to="/login" />;
 };
 

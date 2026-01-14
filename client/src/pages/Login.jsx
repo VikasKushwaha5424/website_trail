@@ -29,25 +29,31 @@ const Login = () => {
     }
   };
 
-  // Handle Google Login
+  // ==========================================
+  // 🔐 SECURE GOOGLE LOGIN
+  // ==========================================
   const handleGoogleLogin = async () => {
     try {
+      // 1. Trigger Google Popup
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
       
-      // Send Google user data to your Server
-      // Note: Your server currently returns 501 (Not Implemented) for this.
-      // You need to update authController.js to handle this.
+      // 2. GET THE SECURITY TOKEN (This proves identity)
+      const token = await result.user.getIdToken(); 
+
+      // 3. SEND TOKEN TO SERVER
+      // The server will verify this token and check if the email exists in the DB.
       const { data } = await API.post("/auth/google-login", { 
-        email: user.email, 
-        name: user.displayName,
-        googlePhotoUrl: user.photoURL 
+        googleToken: token 
       });
 
       handleLoginSuccess(data);
+
     } catch (error) {
-      console.error(error);
-      toast.error("Google Login Failed: " + error.message);
+      console.error("Google Login Error:", error);
+      
+      // Show the specific error from the backend (e.g., "Email not registered")
+      const serverMessage = error.response?.data?.message;
+      toast.error(serverMessage || "Google Login Failed");
     }
   };
 

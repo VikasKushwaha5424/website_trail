@@ -3,6 +3,10 @@ const StudentProfile = require("../models/StudentProfile");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const sendEmail = require("../utils/emailService");
+const { OAuth2Client } = require('google-auth-library'); // ✅ Required for security
+
+// Initialize Google Client
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Helper: Generate JWT Token
 const generateToken = (id, role) => {
@@ -13,7 +17,6 @@ const generateToken = (id, role) => {
 // 1. REGISTER USER (With Validation & Rollback)
 // ==========================================
 exports.registerUser = async (req, res) => {
-  // 1️⃣ Declare user outside 'try' so it is accessible in 'catch'
   let user = null; 
 
   try {
@@ -58,7 +61,7 @@ exports.registerUser = async (req, res) => {
         firstName: firstName,
         lastName: lastName,
         rollNumber: rollNumber,
-        departmentId: null, // Pending assignment
+        departmentId: null, 
         batchYear: new Date().getFullYear(),
         currentStatus: "ACTIVE"
       });
@@ -122,17 +125,31 @@ exports.loginUser = async (req, res) => {
 };
 
 // ==========================================
-// 3. GOOGLE LOGIN (IMPLEMENTED)
+// 3. SECURE GOOGLE LOGIN (NO AUTO-REGISTER)
 // ==========================================
 exports.googleLogin = async (req, res) => {
   try {
-    const { email, name, googlePhotoUrl } = req.body;
+    // 🛡️ SECURITY: We now expect a TOKEN, not just an email
+    const { googleToken } = req.body; 
 
-    // 1. Check if user exists
-    let user = await User.findOne({ email });
+    if (!googleToken) {
+      return res.status(400).json({ message: "No Google Token provided" });
+    }
+
+    // 1. Verify Token with Google (This prevents fake logins)
+    const ticket = await client.verifyIdToken({
+        idToken: googleToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    
+    // 2. Get the trusted email from Google
+    const { email } = ticket.getPayload(); 
+
+    // 3. Check if user exists in DB
+    const user = await User.findOne({ email });
 
     if (user) {
-      // 2. If user exists, log them in
+      // ✅ User Exists -> Log them in
       return res.json({
         _id: user.id,
         name: user.name,
@@ -141,47 +158,15 @@ exports.googleLogin = async (req, res) => {
         token: generateToken(user._id, user.role),
       });
     } else {
-      // 3. Auto-Register New Google User
-      
-      // Generate a random password since Google users don't use one
-      const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(generatedPassword, salt);
-
-      // Create Base User
-      user = await User.create({
-        name,
-        email,
-        passwordHash: hashedPassword,
-        role: "student", // Default role
-        profilePicture: googlePhotoUrl,
-        isActive: true
-      });
-
-      // Create Student Profile
-      const nameParts = name.trim().split(" ");
-      const firstName = nameParts[0];
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
-
-      await StudentProfile.create({
-        userId: user._id,
-        firstName: firstName,
-        lastName: lastName,
-        currentStatus: "ACTIVE",
-        batchYear: new Date().getFullYear()
-      });
-
-      // Return Token
-      res.status(201).json({
-        _id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        token: generateToken(user._id, user.role),
+      // ❌ User Does NOT Exist -> Reject Login
+      // We explicitly removed the code that creates a new user here.
+      return res.status(403).json({ 
+        message: "Access Denied. Email not registered in system. Contact Admin." 
       });
     }
+
   } catch (error) {
     console.error("Google Auth Error:", error);
-    res.status(500).json({ message: "Google Login failed on server" });
+    res.status(401).json({ message: "Google Login Failed: Invalid Token" });
   }
 };

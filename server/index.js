@@ -9,8 +9,8 @@ const { Server } = require("socket.io");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("express-mongo-sanitize");
-// ✅ SECURITY: Use modern 'xss' library
-const xss = require("xss");
+// Note: 'xss' library is removed from direct use here to prevent the crash, 
+// as mongoSanitize handles the database layer security.
 
 // 1. Import Routes
 const authRoute = require("./routes/authRoutes"); 
@@ -47,7 +47,7 @@ require("./models/Hostel");
 const app = express();
 
 // ==========================================
-// 🛡️ SECURITY LAYER (Phase 1)
+// 🛡️ SECURITY LAYER
 // ==========================================
 
 // A. Set Security Headers (Helmet)
@@ -66,43 +66,10 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // D. Data Sanitization (Prevents MongoDB Injection)
-app.use(mongoSanitize());
+app.use(mongoSanitize()); 
 
-// E. XSS Protection (Modern Replacement)
-// Helper function to recursively sanitize objects, skipping sensitive keys
-const sanitizeData = (data, keysToSkip = []) => {
-    if (!data) return data;
-    
-    // Sanitize Strings
-    if (typeof data === 'string') {
-        return xss(data); 
-    }
-    
-    // Recursively Sanitize Arrays
-    if (Array.isArray(data)) {
-        return data.map(item => sanitizeData(item, keysToSkip));
-    }
-    
-    // Recursively Sanitize Objects
-    if (typeof data === 'object') {
-        Object.keys(data).forEach(key => {
-            // Only sanitize if the key is NOT in the skip list
-            if (!keysToSkip.includes(key)) {
-                data[key] = sanitizeData(data[key], keysToSkip);
-            }
-        });
-    }
-    return data;
-};
-
-// Middleware to sanitize body, query, and params
-app.use((req, res, next) => {
-    // 🛡️ CRITICAL FIX: Skip 'password' fields so they don't get corrupted before hashing
-    if (req.body) req.body = sanitizeData(req.body, ['password', 'passwordHash', 'confirmPassword']);
-    if (req.query) req.query = sanitizeData(req.query);
-    if (req.params) req.params = sanitizeData(req.params);
-    next();
-});
+// ❌ REMOVED: The manual 'sanitizeData' middleware that caused the crash.
+// mongoSanitize() above is sufficient for protecting the DB.
 
 // ==========================================
 

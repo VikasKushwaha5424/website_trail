@@ -71,7 +71,7 @@ const seedData = async () => {
     // 👑 A. YOUR ADMIN ACCOUNT
     const adminUser = await User.create({
       name: "Vikas Admin",
-      email: MY_REAL_EMAIL,  // <--- You can login with this!
+      email: vikaskushwaha5424@gmail.com,  // <--- You can login with this!
       passwordHash,
       role: 'admin',
       rollNumber: "ADMIN-001",
