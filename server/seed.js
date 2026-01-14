@@ -68,16 +68,27 @@ const seedData = async () => {
         email: "vikaskushwaha5424@gmail.com", 
         role: "admin", 
         rollNumber: "ADMIN001",
-        // 👇 FIX: Using the exact key 'passwordHash'
         passwordHash: hashedPassword,
         isActive: true
     });
     console.log('✅ Admin User created.');
 
+    // --- CREATE FACULTY (New Addition) ---
+    const faculty = await User.create({
+      name: "Amit Faculty",
+      email: "amit.faculty@college.edu",
+      role: "faculty",
+      rollNumber: "FAC001", 
+      passwordHash: hashedPassword,
+      isActive: true
+    });
+    console.log('✅ Faculty User created.');
+
     console.log("\n------------------------------------------");
     console.log("🎉 SEEDING COMPLETE!");
-    console.log("👉 Login 1 (Manual):  ID: 2026000001   | Pass: password123");
-    console.log("👉 Login 2 (Google):  Use 'vikaskushwaha5424@gmail.com'");
+    console.log("👉 Student Login:  ID: 2026000001 | Pass: password123");
+    console.log("👉 Faculty Login:  ID: FAC001     | Pass: password123");
+    console.log("👉 Admin Login:    ID: ADMIN001   | Pass: password123");
     console.log("------------------------------------------");
 
     await mongoose.connection.close();

@@ -5,29 +5,24 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
+    fontFamily: {
+      satoshi: ['Satoshi', 'sans-serif'],
+      // You can add 'poppins': ['Poppins', 'sans-serif'] here if you want a cuter font
+    },
     extend: {
       colors: {
-        // Batch 3 Analogous Palette
-        brand: {
-          light: '#EAB9FF',  // Pinkish Purple
-          DEFAULT: '#C7B9FF', // Soft Purple
-          dark: '#B9CEFF',    // Soft Blue
-        }
+        // MAPPING TAILWIND TO YOUR CSS VARIABLES
+        primary: 'var(--color-primary)',   // #B9CEFF
+        secondary: 'var(--color-secondary)', // #C7B9FF
+        accent: 'var(--color-accent)',       // #EAB9FF
+        
+        // Neutral Shades (Good for text)
+        black: '#1C2434',
+        'slate-900': '#0f172a',
+        'slate-800': '#1e293b',
+        'slate-700': '#334155',
+        'slate-200': '#e2e8f0',
       },
-      animation: {
-        'fade-in': 'fadeIn 0.5s ease-out forwards',
-        'slide-up': 'slideUp 0.5s ease-out forwards',
-      },
-      keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
-        slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(20px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        }
-      }
     },
   },
   plugins: [],

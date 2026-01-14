@@ -1,11 +1,14 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import Login from "./pages/auth/Login";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-// Placeholder Dashboards (Create these files later!)
-const AdminDashboard = () => <h1>Welcome Admin</h1>;
-const FacultyDashboard = () => <h1>Welcome Faculty</h1>;
-const StudentDashboard = () => <h1>Welcome Student</h1>;
+// Import your newly created dashboard
+import AdminDashboard from "./pages/admin/AdminDashboard";
+
+// (Placeholder components for others to prevent errors for now)
+const StudentDashboard = () => <div>Student Dashboard Coming Soon</div>;
+const FacultyDashboard = () => <div>Faculty Dashboard Coming Soon</div>;
 
 function App() {
   return (
@@ -14,15 +17,25 @@ function App() {
         <Routes>
           {/* Public Route */}
           <Route path="/login" element={<Login />} />
-          
-          {/* Redirect Root to Login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
-          {/* Protected Routes (We will add strict protection later) */}
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
-          <Route path="/student/dashboard" element={<StudentDashboard />} />
-          
+          {/* 🛡️ ADMIN ROUTE */}
+          <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            {/* Later you will add: */}
+            {/* <Route path="/admin/students" element={<AdminStudents />} /> */}
+          </Route>
+
+          {/* 🎓 FACULTY ROUTE */}
+          <Route element={<ProtectedRoute allowedRoles={['faculty', 'admin']} />}>
+            <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
+          </Route>
+
+          {/* 🎒 STUDENT ROUTE */}
+          <Route element={<ProtectedRoute allowedRoles={['student']} />}>
+            <Route path="/student/dashboard" element={<StudentDashboard />} />
+          </Route>
+
         </Routes>
       </Router>
     </AuthProvider>
