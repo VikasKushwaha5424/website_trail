@@ -3,13 +3,6 @@ import { AuthProvider } from "./context/AuthContext";
 import Login from "./pages/auth/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-// Import your newly created dashboard
-import AdminDashboard from "./pages/admin/AdminDashboard";
-
-// (Placeholder components for others to prevent errors for now)
-const StudentDashboard = () => <div>Student Dashboard Coming Soon</div>;
-const FacultyDashboard = () => <div>Faculty Dashboard Coming Soon</div>;
-
 function App() {
   return (
     <AuthProvider>
@@ -17,23 +10,14 @@ function App() {
         <Routes>
           {/* Public Route */}
           <Route path="/login" element={<Login />} />
+          
+          {/* Redirect root to login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
-          {/* 🛡️ ADMIN ROUTE */}
-          <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            {/* Later you will add: */}
-            {/* <Route path="/admin/students" element={<AdminStudents />} /> */}
-          </Route>
-
-          {/* 🎓 FACULTY ROUTE */}
-          <Route element={<ProtectedRoute allowedRoles={['faculty', 'admin']} />}>
-            <Route path="/faculty/dashboard" element={<FacultyDashboard />} />
-          </Route>
-
-          {/* 🎒 STUDENT ROUTE */}
-          <Route element={<ProtectedRoute allowedRoles={['student']} />}>
-            <Route path="/student/dashboard" element={<StudentDashboard />} />
+          {/* 🛡️ PROTECTED ROUTES CONTAINER */}
+          {/* Your future dashboards will go here */}
+          <Route element={<ProtectedRoute />}>
+             {/* Example: <Route path="/dashboard" element={<Dashboard />} /> */}
           </Route>
 
         </Routes>

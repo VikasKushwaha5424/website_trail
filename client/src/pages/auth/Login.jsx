@@ -1,7 +1,7 @@
 import { useState, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { FaGoogle, FaUserGraduate, FaLock } from "react-icons/fa"; // Icons
+import { FaGoogle, FaUserGraduate, FaLock, FaArrowRight } from "react-icons/fa";
 
 const Login = () => {
   const { login } = useContext(AuthContext);
@@ -20,9 +20,14 @@ const Login = () => {
 
     try {
       const user = await login(form.rollNumber, form.password);
-      if (user.role === "admin") navigate("/admin/dashboard");
-      else if (user.role === "faculty") navigate("/faculty/dashboard");
-      else navigate("/student/dashboard");
+      
+      // Temporary Success Message
+      alert(`Welcome Back, ${user.name}! (${user.role})`);
+      console.log("Login Success:", user);
+      
+      // TODO: Navigate to dashboard
+      // navigate('/dashboard');
+
     } catch (err) {
       setError(err.toString());
     } finally {
@@ -30,117 +35,137 @@ const Login = () => {
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Placeholder for future logic
-    alert("Google Login coming soon! Please use your Roll Number.");
-  };
-
   return (
-    // 1. Background with Batch 3 Gradient
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-dark via-brand-DEFAULT to-brand-light p-4">
+    <div className="min-h-screen flex w-full">
       
-      {/* 2. Glassmorphism Card */}
-      <div className="bg-white/80 backdrop-blur-md p-8 rounded-2xl shadow-2xl w-full max-w-md animate-slide-up border border-white/50">
+      {/* ============================================================
+          🎨 LEFT HALF: CREATIVITY & BRANDING
+          (Hidden on mobile, visible on large screens)
+         ============================================================ */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-b1-1 via-b1-2 to-b1-3 items-center justify-center relative overflow-hidden">
         
-        {/* Header Section */}
-        <div className="text-center mb-8">
-          <div className="inline-block p-3 rounded-full bg-brand-light/30 text-brand-dark mb-3">
-             {/* College Logo Icon Placeholder */}
-             <svg className="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path></svg>
-          </div>
-          <h2 className="text-3xl font-bold text-gray-800">Welcome Back</h2>
-          <p className="text-gray-500 mt-1">Sign in to the College Portal</p>
+        {/* Abstract Decorative Blobs */}
+        <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-white/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-10 right-10 w-80 h-80 bg-b1-4/20 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] border-[50px] border-white/10 rounded-full"></div>
+
+        {/* Content Overlay */}
+        <div className="relative z-10 p-12 text-center">
+           <div className="mb-6 inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl shadow-lg text-black">
+              {/* College Logo / Icon */}
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+           </div>
+           
+           <h1 className="text-5xl font-extrabold text-black mb-6 tracking-tight font-satoshi">
+             Shape Your <br/> Future Here.
+           </h1>
+           <p className="text-lg text-black/70 max-w-md mx-auto leading-relaxed">
+             Access your student portal to track attendance, view grades, and manage your academic journey seamlessly.
+           </p>
         </div>
-        
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-3 rounded mb-6 text-sm animate-fade-in">
-            <p className="font-bold">Error</p>
-            <p>{error}</p>
-          </div>
-        )}
-
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          
-          {/* Roll Number Input */}
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition">
-              <FaUserGraduate />
-            </div>
-            <input
-              type="text"
-              name="rollNumber"
-              value={form.rollNumber}
-              onChange={handleChange}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-DEFAULT focus:border-transparent outline-none transition bg-white/50 focus:bg-white"
-              placeholder="Roll Number (e.g. 2026001)"
-              required
-            />
-          </div>
-
-          {/* Password Input */}
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition">
-              <FaLock />
-            </div>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-DEFAULT focus:border-transparent outline-none transition bg-white/50 focus:bg-white"
-              placeholder="Password"
-              required
-            />
-          </div>
-
-          {/* Main Login Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold py-3 rounded-lg hover:opacity-90 transition transform active:scale-95 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center justify-center">
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Signing In...
-              </span>
-            ) : "Sign In"}
-          </button>
-        </form>
-
-        {/* Divider */}
-        <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-            </div>
-        </div>
-
-        {/* Google Button (Placeholder) */}
-        <button 
-          type="button"
-          onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 font-medium py-3 rounded-lg hover:bg-gray-50 transition shadow-sm"
-        >
-          <FaGoogle className="text-red-500" />
-          Sign in with Google
-        </button>
-
-        {/* Footer Text */}
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500">
-            Having trouble? <span className="text-indigo-600 font-semibold cursor-pointer hover:underline" onClick={() => alert("Please contact the Administration department at Room 101.")}>Contact Admin</span>
-          </p>
-        </div>
-
       </div>
+
+      {/* ============================================================
+          🔐 RIGHT HALF: LOGIN FORM
+         ============================================================ */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center bg-white p-8">
+        <div className="w-full max-w-md">
+          
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-black mb-2">Student Login</h2>
+            <p className="text-gray-500">Please enter your details to continue.</p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded mb-6 text-sm flex items-center">
+              <span className="font-bold mr-2">Error:</span> {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* Roll Number */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Roll Number</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-b1-7 transition">
+                  <FaUserGraduate />
+                </div>
+                <input
+                  type="text"
+                  name="rollNumber"
+                  value={form.rollNumber}
+                  onChange={handleChange}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-b1-1 focus:border-transparent outline-none transition bg-gray-50 focus:bg-white"
+                  placeholder="e.g. 2026001"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Password</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-b1-7 transition">
+                  <FaLock />
+                </div>
+                <input
+                  type="password"
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-b1-1 focus:border-transparent outline-none transition bg-gray-50 focus:bg-white"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              <div className="flex justify-end">
+                <a href="#" className="text-xs text-b1-7 font-semibold hover:underline">Forgot Password?</a>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-black text-white font-bold py-3.5 rounded-xl hover:bg-gray-800 transition transform active:scale-95 shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? "Signing In..." : (
+                <>
+                  Sign In <FaArrowRight className="text-sm" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white text-gray-400">Or</span>
+              </div>
+          </div>
+
+          {/* Social Login */}
+          <button 
+            type="button"
+            onClick={() => alert("Coming Soon")}
+            className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 font-medium py-3 rounded-xl hover:bg-gray-50 transition shadow-sm"
+          >
+            <FaGoogle className="text-red-500" />
+            Continue with Google
+          </button>
+
+          <p className="text-center mt-8 text-sm text-gray-400">
+            © 2026 College Management System
+          </p>
+
+        </div>
+      </div>
+
     </div>
   );
 };

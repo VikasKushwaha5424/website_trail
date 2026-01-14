@@ -7,21 +7,36 @@ export default {
   theme: {
     fontFamily: {
       satoshi: ['Satoshi', 'sans-serif'],
-      // You can add 'poppins': ['Poppins', 'sans-serif'] here if you want a cuter font
     },
     extend: {
       colors: {
-        // MAPPING TAILWIND TO YOUR CSS VARIABLES
-        primary: 'var(--color-primary)',   // #B9CEFF
-        secondary: 'var(--color-secondary)', // #C7B9FF
-        accent: 'var(--color-accent)',       // #EAB9FF
+        // 1. Semantic Colors (Change based on .theme-admin class)
+        primary: 'var(--color-primary)',
+        secondary: 'var(--color-secondary)',
+        accent: 'var(--color-accent)',
+        highlight: 'var(--color-highlight)',
+
+        // 2. Strict Black & White
+        black: '#000000',
+        white: '#ffffff',
         
-        // Neutral Shades (Good for text)
-        black: '#1C2434',
-        'slate-900': '#0f172a',
-        'slate-800': '#1e293b',
-        'slate-700': '#334155',
-        'slate-200': '#e2e8f0',
+        // 3. Batch 1 Direct Access (Student/Login)
+        'b1-1': '#FFA5C0',
+        'b1-2': '#FFB7A5',
+        'b1-3': '#FFE4A5',
+        'b1-4': '#A5FFE4',
+        'b1-5': '#A5C0FF',
+        'b1-6': '#A5FFB7',
+        'b1-7': '#B7A5FF',
+
+        // 4. Batch 5 Direct Access (Faculty/Admin)
+        'b5-1': '#B9CEFF',
+        'b5-2': '#C7B9FF',
+        'b5-3': '#EAB9FF',
+        'b5-4': '#FFEAB9',
+        'b5-5': '#CEFFB9',
+        'b5-6': '#FFC7B9',
+        'b5-7': '#B9FFC7',
       },
     },
   },

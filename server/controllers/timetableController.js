@@ -2,7 +2,8 @@ const Timetable = require("../models/Timetable");
 const Enrollment = require("../models/Enrollment");
 const StudentProfile = require("../models/StudentProfile"); 
 const CourseOffering = require("../models/CourseOffering");
-const Semester = require("../models/Semester"); // ✅ Added Import
+const Semester = require("../models/Semester"); 
+const FacultyProfile = require("../models/FacultyProfile");
 
 // =========================================================
 // 1. Get My Weekly Schedule (Active Semester Only)
@@ -100,6 +101,64 @@ exports.addSlot = async (req, res) => {
 
   } catch (err) {
     console.error("Add Slot Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 3. Get My DAILY Schedule (For Dashboard Home Widget)
+// =========================================================
+exports.getMyDailySchedule = async (req, res) => {
+  try {
+    // 1. Determine "Today" (e.g., "MONDAY")
+    const days = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    const today = days[new Date().getDay()];
+
+    let courseOfferingIds = [];
+
+    // 2. Identify User Role & Get Related Courses
+    if (req.user.role === "student") {
+        const student = await StudentProfile.findOne({ userId: req.user.id });
+        if (!student) return res.status(404).json({ message: "Profile not found" });
+
+        // Get Active Semester
+        const activeSemester = await Semester.findOne({ isActive: true });
+        if (!activeSemester) return res.json({ day: today, schedule: [] }); 
+
+        // Find active enrollments
+        const enrollments = await Enrollment.find({ 
+            studentId: student._id,
+            status: "ENROLLED"
+        }).populate("courseOfferingId");
+
+        // Filter enrollments by active semester
+        courseOfferingIds = enrollments
+            .filter(e => e.courseOfferingId.semesterId.toString() === activeSemester._id.toString())
+            .map(e => e.courseOfferingId._id);
+
+    } else if (req.user.role === "faculty") {
+        const faculty = await FacultyProfile.findOne({ userId: req.user.id });
+        if (!faculty) return res.status(404).json({ message: "Profile not found" });
+
+        const offerings = await CourseOffering.find({ facultyId: faculty._id });
+        courseOfferingIds = offerings.map(o => o._id);
+    }
+
+    // 3. Fetch Timetable for TODAY only
+    const dailySchedule = await Timetable.find({
+        courseOfferingId: { $in: courseOfferingIds },
+        dayOfWeek: today
+    })
+    .populate({
+        path: "courseOfferingId",
+        populate: { path: "courseId", select: "name code" }
+    })
+    .sort({ startTime: 1 });
+
+    res.json({ day: today, schedule: dailySchedule });
+
+  } catch (err) {
+    console.error("Daily Schedule Error:", err);
     res.status(500).json({ error: err.message });
   }
 };

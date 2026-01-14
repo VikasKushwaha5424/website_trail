@@ -1,16 +1,28 @@
 const express = require("express");
 const router = express.Router();
 const timetableController = require("../controllers/timetableController");
-const { protect, authorize } = require("../middleware/authMiddleware"); // Import Auth Middleware
+const { protect, authorize } = require("../middleware/authMiddleware");
 
-// 🔒 Protect All Routes
+// 🔒 Protect All Routes globally
 router.use(protect);
 
-// ✅ FIX: Removed ":studentId" param. 
-// Uses "my-schedule" to indicate it returns the logged-in user's data.
-router.get("/my-schedule", authorize("student"), timetableController.getMyTimetable);
+// ==========================================
+// 📅 VIEW SCHEDULES
+// ==========================================
 
-// ✅ FIX: Added Authorization. Only Admin/Faculty can add slots.
+// 1. Weekly Schedule (Full View)
+// Allows both Students and Faculty to see their weekly classes
+router.get("/my-schedule", authorize("student", "faculty"), timetableController.getMyTimetable);
+
+// 2. Daily Schedule (For Dashboard Widget)
+// Returns only TODAY'S classes sorted by time
+router.get("/daily", authorize("student", "faculty"), timetableController.getMyDailySchedule);
+
+// ==========================================
+// ✏️ MANAGE SCHEDULES
+// ==========================================
+
+// 3. Add Class Slot (Admin/Faculty Only)
 router.post("/add", authorize("admin", "faculty"), timetableController.addSlot);
 
 module.exports = router;

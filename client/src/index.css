@@ -3,37 +3,62 @@
 @tailwind utilities;
 
 :root {
-  /* 🎨 YOUR CHOSEN PALETTE (Currently Batch 3 - Blue/Purple/Lavender) */
-  /* You can Paste Batch 1 or 2 here later to swap themes instantly */
+  /* =========================================
+     🎨 BATCH 1: Login & Student (Default)
+     ========================================= */
+  --color-b1-1: #FFA5C0; /* Pink   */
+  --color-b1-2: #FFB7A5; /* Peach  */
+  --color-b1-3: #FFE4A5; /* Yellow */
+  --color-b1-4: #A5FFE4; /* Aqua   */
+  --color-b1-5: #A5C0FF; /* Blue   */
+  --color-b1-6: #A5FFB7; /* Green  */
+  --color-b1-7: #B7A5FF; /* Purple */
+
+  /* =========================================
+     🎨 BATCH 5: Faculty & Admin
+     ========================================= */
+  --color-b5-1: #B9CEFF; /* Blue   */
+  --color-b5-2: #C7B9FF; /* Purple */
+  --color-b5-3: #EAB9FF; /* Pink   */
+  --color-b5-4: #FFEAB9; /* Yellow */
+  --color-b5-5: #CEFFB9; /* Green  */
+  --color-b5-6: #FFC7B9; /* Orange */
+  --color-b5-7: #B9FFC7; /* Mint   */
+
+  /* =========================================
+     🚀 SEMANTIC MAPPING (The Magic Switch)
+     By default, we point to Batch 1 (Student/Login)
+     ========================================= */
+  --color-primary:   var(--color-b1-1);
+  --color-secondary: var(--color-b1-2);
+  --color-accent:    var(--color-b1-3);
+  --color-highlight: var(--color-b1-4);
   
-  /* Primary Brand Color (Main Buttons, Links) */
-  --color-primary: #B9CEFF; 
+  /* Standard Backgrounds */
+  --color-black: #000000;
+  --color-white: #ffffff;
+}
 
-  /* Secondary Color (Sidebar Highlights, Accents) */
-  --color-secondary: #C7B9FF;
-
-  /* Accent Color (Notifications, Badges) */
-  --color-accent: #EAB9FF;
-
-  /* Background Colors (To replace the harsh dark grays) */
-  --color-bg-sidebar: #1e293b; /* Keeping sidebar dark neutral so your pastels POP */
-  --color-bg-body: #f8fafc;    /* Clean light gray background */
+/* 🛡️ ADMIN / FACULTY THEME OVERRIDE
+   Wrap admin components in <div className="theme-admin"> 
+   to instantly switch the semantics to Batch 5.
+*/
+.theme-admin {
+  --color-primary:   var(--color-b5-1);
+  --color-secondary: var(--color-b5-2);
+  --color-accent:    var(--color-b5-3);
+  --color-highlight: var(--color-b5-4);
 }
 
 @layer base {
   body {
-    @apply font-satoshi text-slate-900 bg-[#f8fafc];
+    @apply font-satoshi text-black bg-white;
   }
 }
 
-/* Fix for the "Horrible Buttons" */
-/* This class forces your pastel buttons to have readable DARK text */
 @layer components {
+  /* Buttons automatically adapt to the current theme */
   .btn-primary {
-    @apply bg-[var(--color-primary)] text-slate-900 font-medium px-6 py-2.5 rounded-lg hover:brightness-95 transition-all shadow-sm hover:shadow-md;
-  }
-  
-  .btn-secondary {
-    @apply bg-[var(--color-secondary)] text-slate-900 font-medium px-6 py-2.5 rounded-lg hover:brightness-95 transition-all;
+    @apply bg-[var(--color-primary)] text-black font-medium px-6 py-2.5 rounded-lg hover:opacity-90 transition-all shadow-sm;
   }
 }
