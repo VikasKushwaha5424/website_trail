@@ -63,6 +63,67 @@ exports.loginUser = async (req, res) => {
 };
 
 // ==========================================
+// 2. CHANGE PASSWORD (Manual Hashing)
+// ==========================================
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // 1. Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Please provide both current and new passwords" });
+    }
+
+    // 2. Get User (req.user.id comes from authMiddleware)
+    // We explicitly fetch the user to ensure we have the passwordHash
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // 3. Verify Current Password
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Incorrect current password" });
+    }
+
+    // 4. Hash the New Password Manually
+    // We do this here because your User model does not have a pre-save hook for 'password'
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // 5. Update the passwordHash field directly
+    user.passwordHash = hashedPassword;
+    
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+
+  } catch (error) {
+    console.error("Change Password Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ==========================================
+// 3. GET CURRENT USER (For Context/Settings)
+// ==========================================
+exports.getMe = async (req, res) => {
+  try {
+    // req.user.id is populated by the protect middleware
+    const user = await User.findById(req.user.id).select("-passwordHash"); // Exclude password hash
+    if (!user) {
+        return res.status(404).json({ message: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error("Get Me Error:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// ==========================================
 // STUBS (To prevent Route Crashes)
 // ==========================================
 

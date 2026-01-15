@@ -29,7 +29,10 @@ import ElectiveSelector from "./pages/student/ElectiveSelector";
 import IDCardGenerator from "./pages/student/IDCardGenerator";
 import StudentDashboard from "./pages/student/StudentDashboard"; 
 import ViewResults from "./pages/student/ViewResults"; 
-import StudentSchedule from "./pages/student/StudentSchedule"; // 👈 NEW IMPORT
+import StudentSchedule from "./pages/student/StudentSchedule"; 
+import StudentProfile from "./pages/student/StudentProfile";
+import StudentCourses from "./pages/student/StudentCourses";
+import StudentFees from "./pages/student/StudentFees";
 
 // Import Faculty Pages
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
@@ -43,6 +46,7 @@ import MyPerformance from "./pages/faculty/MyPerformance";
 
 // Shared Pages
 import CourseResources from "./pages/shared/CourseResources"; 
+import SettingsPage from "./pages/shared/SettingsPage"; // 👈 NEW IMPORT
 
 function App() {
   return (
@@ -75,6 +79,8 @@ function App() {
               <Route path="notices" element={<AnnouncementPage />} />
               <Route path="feedback" element={<FeedbackStats />} />
               <Route path="leaves" element={<LeaveManager />} />
+              
+              <Route path="settings" element={<SettingsPage />} /> {/* 👈 Admin Settings */}
             </Route>
           </Route>
 
@@ -98,6 +104,8 @@ function App() {
               <Route path="marks" element={<MarksEntry />} />
               <Route path="performance" element={<MyPerformance />} />
               <Route path="leave" element={<ApplyLeave />} />
+              
+              <Route path="settings" element={<SettingsPage />} /> {/* 👈 Faculty Settings */}
             </Route>
           </Route>
 
@@ -109,12 +117,17 @@ function App() {
               <Route index element={<Navigate to="/student/dashboard" replace />} />
               
               <Route path="dashboard" element={<StudentDashboard />} />
-              <Route path="schedule" element={<StudentSchedule />} /> {/* 👈 NEW ROUTE */}
+              <Route path="courses" element={<StudentCourses />} />
+              <Route path="fees" element={<StudentFees />} />
+              <Route path="schedule" element={<StudentSchedule />} />
               <Route path="feedback" element={<StudentFeedback />} />
               <Route path="electives" element={<ElectiveSelector />} />
               <Route path="resources/:offeringId" element={<CourseResources />} />
               <Route path="id-card" element={<IDCardGenerator />} />
               <Route path="results" element={<ViewResults />} />
+              <Route path="profile" element={<StudentProfile />} />
+              
+              <Route path="settings" element={<SettingsPage />} /> {/* 👈 Student Settings */}
             </Route>
           </Route>
 

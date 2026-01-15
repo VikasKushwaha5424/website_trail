@@ -9,7 +9,8 @@ import {
   Briefcase,
   LogOut,
   CalendarDays,
-  Star // 👈 1. Added Import
+  Star,
+  Settings // 👈 IMPORTED
 } from "lucide-react";
 
 const FacultyLayout = () => {
@@ -27,8 +28,9 @@ const FacultyLayout = () => {
     { name: "My Courses", path: "/faculty/courses", icon: <BookOpen size={20} /> },
     { name: "Attendance", path: "/faculty/attendance", icon: <ClipboardCheck size={20} /> },
     { name: "Enter Marks", path: "/faculty/marks", icon: <GraduationCap size={20} /> },
-    { name: "My Performance", path: "/faculty/performance", icon: <Star size={20} /> }, // 👈 2. Added Item
+    { name: "My Performance", path: "/faculty/performance", icon: <Star size={20} /> },
     { name: "Apply Leave", path: "/faculty/leave", icon: <Briefcase size={20} /> },
+    { name: "Settings", path: "/faculty/settings", icon: <Settings size={20} /> }, // 👈 ADDED SETTINGS LINK
   ];
 
   return (

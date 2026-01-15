@@ -8,7 +8,11 @@ import {
   CreditCard,        
   Star,
   LogOut,
-  CalendarDays // 👈 IMPORTED
+  CalendarDays,
+  User,
+  BookOpen,
+  Banknote,
+  Settings // 👈 IMPORTED
 } from "lucide-react";
 
 const StudentLayout = () => {
@@ -22,11 +26,15 @@ const StudentLayout = () => {
 
   const navItems = [
     { name: "Dashboard", path: "/student", icon: <LayoutDashboard size={20} />, end: true },
-    { name: "My Schedule", path: "/student/schedule", icon: <CalendarDays size={20} /> }, // 👈 ADDED THIS
+    { name: "My Courses", path: "/student/courses", icon: <BookOpen size={20} /> },
+    { name: "My Schedule", path: "/student/schedule", icon: <CalendarDays size={20} /> },
+    { name: "Fees & Payments", path: "/student/fees", icon: <Banknote size={20} /> },
     { name: "Electives", path: "/student/electives", icon: <MousePointerClick size={20} /> },
     { name: "Rate Faculty", path: "/student/feedback", icon: <Star size={20} /> },
     { name: "Results", path: "/student/results", icon: <FileText size={20} /> },
     { name: "ID Card", path: "/student/id-card", icon: <CreditCard size={20} /> },
+    { name: "Profile", path: "/student/profile", icon: <User size={20} /> },
+    { name: "Settings", path: "/student/settings", icon: <Settings size={20} /> }, // 👈 ADDED SETTINGS LINK
   ];
 
   return (

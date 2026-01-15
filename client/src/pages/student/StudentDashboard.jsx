@@ -1,12 +1,29 @@
 import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import api from "../../utils/api";
+import { Link } from "react-router-dom";
+import { useSocket } from "../../hooks/useSocket"; // 👈 IMPORT SOCKET HOOK
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Calendar, 
+  AlertCircle, 
+  Bell, // 👈 Import Bell
+  X     // 👈 Import X
+} from "lucide-react";
 
 const StudentDashboard = () => {
   const { user } = useContext(AuthContext);
+  
+  // Data States
   const [notices, setNotices] = useState([]);
   const [dailySchedule, setDailySchedule] = useState(null); 
+  const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // 🔔 NOTIFICATION STATE
+  const [newNotice, setNewNotice] = useState(null);
+  const socket = useSocket(); // 👈 INITIALIZE SOCKET
 
   // Helper: Time Formatter
   const formatTime = (minutes) => {
@@ -17,16 +34,18 @@ const StudentDashboard = () => {
     return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
   };
 
+  // 1. Fetch Initial Dashboard Data
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // 1. Fetch Notices (Matches route in studentRoutes.js)
         const noticesRes = await api.get("/student/announcements");
         setNotices(noticesRes.data);
 
-        // 2. Fetch Today's Schedule (Matches route in timetableRoutes.js)
         const scheduleRes = await api.get("/timetable/daily");
-        setDailySchedule(scheduleRes.data); // Expects { day: "MONDAY", schedule: [...] }
+        setDailySchedule(scheduleRes.data);
+
+        const attendanceRes = await api.get("/student/attendance");
+        setAttendance(attendanceRes.data);
 
       } catch (error) {
         console.error("Failed to load dashboard:", error);
@@ -38,10 +57,64 @@ const StudentDashboard = () => {
     fetchDashboardData();
   }, []);
 
+  // 2. 🔌 REAL-TIME LISTENER
+  useEffect(() => {
+    if (!socket) return;
+
+    // Listen for 'receive_notice' event from server
+    socket.on("receive_notice", (data) => {
+      console.log("🔔 New Notice Received:", data);
+      
+      // Set popup data
+      setNewNotice(data); 
+      
+      // Add to list immediately
+      setNotices((prev) => [data, ...prev]); 
+
+      // Auto-hide popup after 5 seconds
+      setTimeout(() => setNewNotice(null), 5000);
+    });
+
+    // Cleanup listener on unmount
+    return () => {
+      socket.off("receive_notice");
+    };
+  }, [socket]);
+
   if (loading) return <div className="p-10 text-center text-gray-500">Loading Dashboard...</div>;
 
+  // Calculate Attendance Colors
+  const attPercentage = parseFloat(attendance?.attendancePercentage || 0);
+  const attColor = attPercentage >= 75 ? "text-green-600" : attPercentage >= 60 ? "text-orange-500" : "text-red-600";
+  const attBg = attPercentage >= 75 ? "bg-green-100" : attPercentage >= 60 ? "bg-orange-100" : "bg-red-100";
+
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-8">
+    <div className="p-6 max-w-6xl mx-auto space-y-8 relative">
+      
+      {/* 🔔 REAL-TIME TOAST NOTIFICATION POPUP */}
+      {newNotice && (
+        <div className="fixed top-20 right-5 bg-white border-l-4 border-blue-500 shadow-2xl rounded-lg p-4 z-50 w-80 animate-bounce md:animate-none transition-all duration-300 transform translate-x-0">
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-100 p-2 rounded-full text-blue-600">
+                <Bell size={18} />
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-800 text-sm">New Announcement!</h4>
+                <p className="text-xs text-gray-500">{newNotice.time || "Just now"}</p>
+              </div>
+            </div>
+            <button onClick={() => setNewNotice(null)} className="text-gray-400 hover:text-gray-600">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="mt-2">
+            <p className="font-semibold text-gray-800">{newNotice.title}</p>
+            <p className="text-sm text-gray-600 mt-1 line-clamp-2">{newNotice.message}</p>
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b pb-4">
         <div>
@@ -54,7 +127,73 @@ const StudentDashboard = () => {
         </div>
       </header>
 
-      {/* 🟢 SECTION 1: TODAY'S SCHEDULE */}
+      {/* 📊 KEY METRICS SECTION */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* 1. Attendance Widget */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
+          <div>
+            <h3 className="text-gray-500 font-medium mb-1">Overall Attendance</h3>
+            <div className="flex items-end gap-2">
+              <span className={`text-4xl font-bold ${attColor}`}>{attPercentage}%</span>
+              <span className={`text-xs px-2 py-1 rounded-full font-bold mb-1 ${attBg} ${attColor}`}>
+                {attPercentage >= 75 ? "Good" : "Low"}
+              </span>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t flex justify-between text-sm text-gray-600">
+             <div>
+                <span className="block font-bold text-gray-800">{attendance?.totalClasses || 0}</span>
+                <span className="text-xs">Total Classes</span>
+             </div>
+             <div>
+                <span className="block font-bold text-green-600">{attendance?.presentClasses || 0}</span>
+                <span className="text-xs">Present</span>
+             </div>
+             <div>
+                <span className="block font-bold text-red-500">{attendance?.absentClasses || 0}</span>
+                <span className="text-xs">Absent</span>
+             </div>
+          </div>
+        </div>
+
+        {/* 2. Quick Actions */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-sm flex flex-col justify-between">
+            <div>
+                <h3 className="text-blue-100 font-medium mb-2">Quick Actions</h3>
+                <div className="grid grid-cols-2 gap-3">
+                    <Link to="/student/fees" className="bg-white/20 hover:bg-white/30 p-2 rounded text-center text-sm transition">
+                        Pay Fees
+                    </Link>
+                    <Link to="/student/results" className="bg-white/20 hover:bg-white/30 p-2 rounded text-center text-sm transition">
+                        View Results
+                    </Link>
+                    <Link to="/student/courses" className="bg-white/20 hover:bg-white/30 p-2 rounded text-center text-sm transition">
+                        My Resources
+                    </Link>
+                    <Link to="/student/id-card" className="bg-white/20 hover:bg-white/30 p-2 rounded text-center text-sm transition">
+                        ID Card
+                    </Link>
+                </div>
+            </div>
+        </div>
+
+        {/* 3. Status Card */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-center">
+            <div>
+                <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Calendar size={24} />
+                </div>
+                <h3 className="text-gray-800 font-bold">Active Semester</h3>
+                <p className="text-gray-500 text-sm mt-1">Check your elective choices</p>
+                <Link to="/student/electives" className="text-purple-600 font-medium text-sm mt-2 block hover:underline">
+                    Manage Electives
+                </Link>
+            </div>
+        </div>
+      </div>
+
+      {/* 📅 SECTION 2: TODAY'S SCHEDULE */}
       <section>
         <h2 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
           📅 Today's Schedule
@@ -85,7 +224,7 @@ const StudentDashboard = () => {
         )}
       </section>
 
-      {/* 🔵 SECTION 2: NOTICE BOARD */}
+      {/* 📢 SECTION 3: NOTICE BOARD */}
       <section>
         <h2 className="text-xl font-bold text-gray-700 mb-4">📢 Notice Board</h2>
         

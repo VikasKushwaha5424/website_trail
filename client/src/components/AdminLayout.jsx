@@ -15,7 +15,8 @@ import {
   ClipboardCheck,
   TrendingUp,
   MessageSquare,
-  Briefcase // 👈 1. Import Briefcase Icon
+  Briefcase,
+  Settings // 👈 IMPORTED
 } from "lucide-react";
 
 const AdminLayout = () => {
@@ -38,9 +39,10 @@ const AdminLayout = () => {
     { name: "Promote", path: "/admin/promote", icon: <TrendingUp size={20} /> },
     { name: "Fees", path: "/admin/fees", icon: <CreditCard size={20} /> },
     { name: "Hostel", path: "/admin/hostel", icon: <Home size={20} /> },
-    { name: "Leaves", path: "/admin/leaves", icon: <Briefcase size={20} /> }, // 👈 2. Add Leaves Item
+    { name: "Leaves", path: "/admin/leaves", icon: <Briefcase size={20} /> },
     { name: "Notices", path: "/admin/notices", icon: <Megaphone size={20} /> },
     { name: "Feedback", path: "/admin/feedback", icon: <MessageSquare size={20} /> },
+    { name: "Settings", path: "/admin/settings", icon: <Settings size={20} /> }, // 👈 ADDED SETTINGS LINK
   ];
 
   return (
