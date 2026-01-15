@@ -16,11 +16,10 @@ const courseOfferingSchema = new mongoose.Schema({
   },
 
   // 3️⃣ WHEN IS IT HAPPENING?
-  // Crucial for the unique index to distinguish between semesters (e.g. Fall vs Spring)
   semesterId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Semester", 
-    required: false 
+    required: true 
   },
   
   // 4️⃣ LOGISTICS
@@ -35,13 +34,28 @@ const courseOfferingSchema = new mongoose.Schema({
     default: "TBD" 
   }, 
 
-  capacity: {
+  // =========================================================
+  // 5️⃣ ELECTIVE & SEAT MANAGEMENT (👈 New Fields Added)
+  // =========================================================
+  
+  isElective: { 
+    type: Boolean, 
+    default: false 
+  },
+
+  isOpen: { 
+    type: Boolean, 
+    default: true // Admin can toggle this to stop registration
+  },
+
+  // Renamed from 'capacity' to match Elective Logic
+  maxSeats: {
     type: Number,
     default: 60
   },
 
-  // ✅ ATOMIC COUNTER: Prevents enrollment race conditions
-  currentEnrollment: {
+  // Renamed from 'currentEnrollment' to match Elective Logic
+  enrolledCount: {
     type: Number,
     default: 0
   }
@@ -49,11 +63,9 @@ const courseOfferingSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // 🛡️ INDEX 1: Prevent duplicate sections 
-// (e.g., You cannot have two "Section A"s for Physics in the same semester)
 courseOfferingSchema.index({ courseId: 1, section: 1, semesterId: 1 }, { unique: true });
 
 // 🛡️ INDEX 2: Prevent Race Condition in Faculty Assignment
-// (e.g., You cannot assign the same Faculty to the same Course in the same Semester twice)
 courseOfferingSchema.index({ facultyId: 1, courseId: 1, semesterId: 1 }, { unique: true });
 
 module.exports = mongoose.model("CourseOffering", courseOfferingSchema);

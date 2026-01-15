@@ -10,7 +10,8 @@ const {
   getStudentCourses, 
   getAttendanceStats,
   getStudentMarks,
-  getAnnouncements // ✅ Added Import
+  getAnnouncements,
+  getIDCardDetails // 👈 ADDED: Import ID Card Controller
 } = require("../controllers/studentController");
 
 // ==========================================
@@ -39,7 +40,9 @@ router.get("/attendance", getAttendanceStats);
 router.get("/marks", getStudentMarks);
 
 // GET /api/student/notices (Announcements)
-// ✅ NEW ROUTE: Allows students to fetch their specific notices
 router.get("/notices", getAnnouncements);
+
+// GET /api/student/id-card (ID Card Generator Data) 👈 ADDED ROUTE
+router.get("/id-card", getIDCardDetails);
 
 module.exports = router;

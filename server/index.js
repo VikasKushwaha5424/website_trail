@@ -23,7 +23,10 @@ const courseRoute = require("./routes/courseRoutes");
 const feeRoute = require("./routes/feeRoutes");
 const timetableRoute = require("./routes/timetableRoutes");
 const hostelRoute = require("./routes/hostelRoutes");
-const marksRoute = require("./routes/marksRoutes"); // 👈 ADDED: Import Marks Route
+const marksRoute = require("./routes/marksRoutes"); 
+const feedbackRoute = require("./routes/feedbackRoutes");
+const leaveRoute = require("./routes/leaveRoutes");
+const electiveRoute = require("./routes/electiveRoutes"); // 👈 ADDED: Import Elective Route
 
 // 3. Connect to Database
 connectDB();
@@ -41,7 +44,9 @@ require("./models/Marks");
 require("./models/Fee"); 
 require("./models/Timetable");
 require("./models/Hostel");
-require("./models/ExamSchedule"); // Ensure ExamSchedule is also registered if used
+require("./models/ExamSchedule"); 
+require("./models/Feedback"); 
+require("./models/Leave");
 
 // 5. Initialize Express
 const app = express();
@@ -76,7 +81,10 @@ app.use("/api/courses", courseRoute);
 app.use("/api/fees", feeRoute);
 app.use("/api/timetable", timetableRoute);
 app.use("/api/hostel", hostelRoute);
-app.use("/api/marks", marksRoute); // 👈 ADDED: Register Marks Route
+app.use("/api/marks", marksRoute);
+app.use("/api/feedback", feedbackRoute);
+app.use("/api/leaves", leaveRoute);
+app.use("/api/electives", electiveRoute); // 👈 ADDED: Register Elective Route
 
 // 8. Basic Test Route
 app.get("/", (req, res) => {

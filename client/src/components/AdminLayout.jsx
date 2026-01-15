@@ -12,7 +12,10 @@ import {
   LogOut,
   Home,
   Calendar,
-  ClipboardCheck // 👈 1. Import ClipboardCheck Icon
+  ClipboardCheck,
+  TrendingUp,
+  MessageSquare,
+  Briefcase // 👈 1. Import Briefcase Icon
 } from "lucide-react";
 
 const AdminLayout = () => {
@@ -31,10 +34,13 @@ const AdminLayout = () => {
     { name: "Classes", path: "/admin/classes", icon: <CalendarRange size={20} /> },
     { name: "Timetable", path: "/admin/timetable", icon: <CalendarDays size={20} /> },
     { name: "Exams", path: "/admin/exams", icon: <Calendar size={20} /> },
-    { name: "Attendance", path: "/admin/attendance", icon: <ClipboardCheck size={20} /> }, // 👈 2. Add Attendance Item
+    { name: "Attendance", path: "/admin/attendance", icon: <ClipboardCheck size={20} /> },
+    { name: "Promote", path: "/admin/promote", icon: <TrendingUp size={20} /> },
     { name: "Fees", path: "/admin/fees", icon: <CreditCard size={20} /> },
     { name: "Hostel", path: "/admin/hostel", icon: <Home size={20} /> },
+    { name: "Leaves", path: "/admin/leaves", icon: <Briefcase size={20} /> }, // 👈 2. Add Leaves Item
     { name: "Notices", path: "/admin/notices", icon: <Megaphone size={20} /> },
+    { name: "Feedback", path: "/admin/feedback", icon: <MessageSquare size={20} /> },
   ];
 
   return (

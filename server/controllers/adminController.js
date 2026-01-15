@@ -16,6 +16,7 @@ const Classroom = require("../models/Classroom");
 const ExamSchedule = require("../models/ExamSchedule"); 
 const Attendance = require("../models/Attendance");
 
+
 // =========================================================
 // 1. ADD USER (Robust: Handles Student/Faculty + Rollback)
 // =========================================================
@@ -1095,6 +1096,54 @@ exports.updateAttendanceOverride = async (req, res) => {
 
     res.json({ message: "Attendance Updated", record });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 27. BATCH PROMOTION (Lifecycle Management)
+// =========================================================
+exports.promoteBatch = async (req, res) => {
+  try {
+    const { departmentId, fromSemester } = req.body;
+    const sem = parseInt(fromSemester);
+
+    if (!sem || sem < 1 || sem > 8) {
+      return res.status(400).json({ error: "Invalid Semester" });
+    }
+
+    // Base Query: Active students in the specific semester
+    const query = { currentSemester: sem, currentStatus: "ACTIVE" };
+    
+    // Optional: Filter by Department (e.g., Promote only CS students)
+    if (departmentId) {
+      query.departmentId = departmentId;
+    }
+
+    let result;
+    
+    // CASE A: Graduation (Sem 8 -> Graduated)
+    if (sem === 8) {
+      result = await StudentProfile.updateMany(query, {
+        $set: { currentStatus: "GRADUATED" }
+      });
+      return res.status(200).json({ 
+        message: `🎓 Batch Graduated! ${result.modifiedCount} students marked as Alumni.` 
+      });
+    } 
+    
+    // CASE B: Standard Promotion (Sem X -> Sem X+1)
+    else {
+      result = await StudentProfile.updateMany(query, {
+        $inc: { currentSemester: 1 }
+      });
+      return res.status(200).json({ 
+        message: `✅ Batch Promoted to Semester ${sem + 1}! ${result.modifiedCount} students updated.` 
+      });
+    }
+
+  } catch (err) {
+    console.error("Promotion Error:", err);
     res.status(500).json({ error: err.message });
   }
 };

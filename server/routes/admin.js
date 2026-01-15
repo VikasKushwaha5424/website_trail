@@ -51,9 +51,12 @@ const {
   getExamSchedule,
   deleteExamSlot,
 
-  // I. Attendance Oversight 👈 ADDED HERE
+  // I. Attendance Oversight
   getAdminAttendance,
-  updateAttendanceOverride
+  updateAttendanceOverride,
+
+  // J. Batch Operations 👈 ADDED HERE
+  promoteBatch
 
 } = require("../controllers/adminController");
 
@@ -182,7 +185,7 @@ router.get("/exams", protect, authorize("admin"), getExamSchedule);
 router.delete("/exams/:id", protect, authorize("admin"), deleteExamSlot);
 
 // ------------------------------------------
-// I. ATTENDANCE ROUTES 👈 ADDED HERE
+// I. ATTENDANCE ROUTES
 // ------------------------------------------
 
 // GET /api/admin/attendance?courseOfferingId=...&date=...
@@ -190,5 +193,12 @@ router.get("/attendance", protect, authorize("admin"), getAdminAttendance);
 
 // POST /api/admin/attendance/fix (Admin Override)
 router.post("/attendance/fix", protect, authorize("admin"), updateAttendanceOverride);
+
+// ------------------------------------------
+// J. BATCH OPERATIONS 👈 ADDED HERE
+// ------------------------------------------
+
+// POST /api/admin/promote (Bulk Promote/Graduate)
+router.post("/promote", protect, authorize("admin"), promoteBatch);
 
 module.exports = router;

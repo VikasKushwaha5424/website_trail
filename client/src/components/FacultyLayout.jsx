@@ -1,0 +1,1 @@
+{ name: "Apply Leave", path: "/faculty/leave", icon: <Briefcase size={20} /> }

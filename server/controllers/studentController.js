@@ -4,7 +4,7 @@ const CourseOffering = require("../models/CourseOffering");
 const Attendance = require("../models/Attendance");
 const Marks = require("../models/Marks");
 const Semester = require("../models/Semester"); 
-const Announcement = require("../models/Announcement"); // ✅ Added Import
+const Announcement = require("../models/Announcement");
 
 // =========================================================
 // 1. GET STUDENT PROFILE
@@ -89,7 +89,6 @@ exports.getAttendanceStats = async (req, res) => {
     const activeSemester = await Semester.findOne({ isActive: true });
     
     // ✅ FIX: Handle Case with No Active Semester
-    // If we don't return here, the query defaults to all-time attendance, which is misleading.
     if (!activeSemester) {
         return res.json({
             message: "No active semester currently.",
@@ -146,7 +145,6 @@ exports.getStudentMarks = async (req, res) => {
         if(!m.courseOfferingId || !m.courseOfferingId.courseId) return null;
 
         // ✅ FIX: Prevent Division by Zero
-        // If maxMarks is 0 (ungraded/seminar), return "N/A" instead of Infinity/NaN
         const percentage = m.maxMarks > 0 
             ? ((m.marksObtained / m.maxMarks) * 100).toFixed(1) 
             : "N/A"; 
@@ -188,5 +186,42 @@ exports.getAnnouncements = async (req, res) => {
   } catch (error) {
     console.error("Notice Error:", error.message);
     res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// =========================================================
+// 6. GET ID CARD DETAILS (For PDF Generator) 👈 ADDED HERE
+// =========================================================
+exports.getIDCardDetails = async (req, res) => {
+  try {
+    const student = await StudentProfile.findOne({ userId: req.user.id })
+      .populate("departmentId", "name code")
+      .populate("userId", "email"); 
+
+    if (!student) return res.status(404).json({ error: "Student not found" });
+
+    // Calculate Validity (e.g., 4 years from admission or current date)
+    const issueDate = new Date();
+    const validUpto = new Date(issueDate);
+    validUpto.setFullYear(validUpto.getFullYear() + 4); 
+
+    const idData = {
+      name: `${student.firstName} ${student.lastName}`,
+      rollNumber: student.rollNumber,
+      department: student.departmentId?.name || "N/A",
+      dob: student.dateOfBirth,
+      bloodGroup: student.bloodGroup || "N/A", 
+      contact: student.contactNumber,
+      address: student.currentAddress || "Campus Hostel",
+      photo: student.profilePicture || "https://via.placeholder.com/150",
+      validUpto: validUpto.toISOString(),
+      universityName: "Mythic University of Technology",
+      authoritySignature: "REGISTRAR" 
+    };
+
+    res.json(idData);
+  } catch (err) {
+    console.error("ID Card Error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 };
