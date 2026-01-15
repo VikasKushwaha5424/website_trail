@@ -62,6 +62,22 @@ const studentProfileSchema = new mongoose.Schema({
     type: String,
     enum: ["ACTIVE", "GRADUATED", "DROPPED", "SUSPENDED"],
     default: "ACTIVE"
+  },
+
+  // =========================================================
+  // 6️⃣ RESIDENCY DETAILS (Hosteller vs Day Scholar)
+  // =========================================================
+  residencyType: {
+    type: String,
+    enum: ["DAY_SCHOLAR", "HOSTELLER"],
+    default: "DAY_SCHOLAR", 
+    required: true
+  },
+
+  // Only populated if residencyType is "HOSTELLER"
+  hostelDetails: {
+    hostelName: { type: String, default: null }, // e.g., "Boys Hostel A"
+    roomNumber: { type: String, default: null }  // e.g., "101"
   }
 
 }, { timestamps: true });
@@ -69,5 +85,6 @@ const studentProfileSchema = new mongoose.Schema({
 // 🔎 PERFORMANCE INDEXES
 studentProfileSchema.index({ firstName: 1, lastName: 1 });
 studentProfileSchema.index({ departmentId: 1 });
+studentProfileSchema.index({ residencyType: 1 }); // Index for filtering hostellers
 
 module.exports = mongoose.model("StudentProfile", studentProfileSchema);

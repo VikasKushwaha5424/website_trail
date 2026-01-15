@@ -1,4 +1,5 @@
 const { Hostel, Room } = require("../models/Hostel");
+const StudentProfile = require("../models/StudentProfile"); // ✅ Import StudentProfile
 
 // =========================================================
 // 1. Allocate Room to Student (Concurrency Safe)
@@ -30,7 +31,7 @@ exports.allocateRoom = async (req, res) => {
         $expr: { $lt: [{ $size: "$occupants" }, "$capacity"] } 
       },
       { 
-        // 👇 FIX: Using $addToSet instead of $push prevents duplicates at the database level
+        // Using $addToSet instead of $push prevents duplicates at the database level
         $addToSet: { occupants: studentId } 
       },
       { new: true } // Return the updated document
@@ -40,6 +41,16 @@ exports.allocateRoom = async (req, res) => {
     if (!updatedRoom) {
        return res.status(400).json({ error: "Room is Full! (Allocation Failed)" });
     }
+
+    // ✅ 4. SYNC UPDATE: Update Student Profile with Residency Details
+    // This ensures the student dashboard reflects their new hosteller status
+    await StudentProfile.findByIdAndUpdate(studentId, {
+      residencyType: "HOSTELLER",
+      hostelDetails: {
+        hostelName: hostelName,
+        roomNumber: roomNumber
+      }
+    });
 
     res.json({ message: "Room Allocated Successfully", room: updatedRoom });
   } catch (err) {

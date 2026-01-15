@@ -2,14 +2,15 @@ import { useState, useEffect, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import api from "../../utils/api";
 import { Link } from "react-router-dom";
-import { useSocket } from "../../hooks/useSocket"; // 👈 IMPORT SOCKET HOOK
+import { useSocket } from "../../hooks/useSocket";
 import { 
   TrendingUp, 
   TrendingDown, 
   Calendar, 
   AlertCircle, 
-  Bell, // 👈 Import Bell
-  X     // 👈 Import X
+  Bell, 
+  X,
+  Home // Optional: You can use this icon instead of the SVG if you prefer
 } from "lucide-react";
 
 const StudentDashboard = () => {
@@ -19,11 +20,15 @@ const StudentDashboard = () => {
   const [notices, setNotices] = useState([]);
   const [dailySchedule, setDailySchedule] = useState(null); 
   const [attendance, setAttendance] = useState(null);
+  
+  // 1️⃣ NEW STATE: Store student profile to check residency status
+  const [studentProfile, setStudentProfile] = useState(null); 
+
   const [loading, setLoading] = useState(true);
 
   // 🔔 NOTIFICATION STATE
   const [newNotice, setNewNotice] = useState(null);
-  const socket = useSocket(); // 👈 INITIALIZE SOCKET
+  const socket = useSocket();
 
   // Helper: Time Formatter
   const formatTime = (minutes) => {
@@ -47,6 +52,10 @@ const StudentDashboard = () => {
         const attendanceRes = await api.get("/student/attendance");
         setAttendance(attendanceRes.data);
 
+        // 2️⃣ NEW FETCH: Get Profile Data for Hostel Info
+        const profileRes = await api.get("/student/profile");
+        setStudentProfile(profileRes.data);
+
       } catch (error) {
         console.error("Failed to load dashboard:", error);
       } finally {
@@ -61,21 +70,13 @@ const StudentDashboard = () => {
   useEffect(() => {
     if (!socket) return;
 
-    // Listen for 'receive_notice' event from server
     socket.on("receive_notice", (data) => {
       console.log("🔔 New Notice Received:", data);
-      
-      // Set popup data
       setNewNotice(data); 
-      
-      // Add to list immediately
       setNotices((prev) => [data, ...prev]); 
-
-      // Auto-hide popup after 5 seconds
       setTimeout(() => setNewNotice(null), 5000);
     });
 
-    // Cleanup listener on unmount
     return () => {
       socket.off("receive_notice");
     };
@@ -128,6 +129,7 @@ const StudentDashboard = () => {
       </header>
 
       {/* 📊 KEY METRICS SECTION */}
+      {/* Added 'md:grid-cols-4' effectively if you want 4 items in a row, but keeping 'md:grid-cols-3' is fine; it will just wrap to the next line. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* 1. Attendance Widget */}
@@ -191,6 +193,32 @@ const StudentDashboard = () => {
                 </Link>
             </div>
         </div>
+
+        {/* 4️⃣ NEW: Hostel Details (Only for Hostellers) */}
+        {studentProfile?.residencyType === "HOSTELLER" && studentProfile.hostelDetails && (
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-xl shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="bg-white/20 p-2 rounded-full">
+                  <Home size={20} />
+                </div>
+                <h3 className="text-indigo-100 font-medium">My Hostel</h3>
+              </div>
+              
+              <div className="space-y-1">
+                <p className="text-2xl font-bold">{studentProfile.hostelDetails.roomNumber}</p>
+                <p className="text-sm opacity-90">{studentProfile.hostelDetails.hostelName}</p>
+              </div>
+            </div>
+            
+            <div className="mt-4 pt-3 border-t border-white/20">
+              <p className="text-xs text-indigo-200">
+                Residency: <span className="font-bold text-white">Confirmed</span>
+              </p>
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* 📅 SECTION 2: TODAY'S SCHEDULE */}
