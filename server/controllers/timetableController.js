@@ -6,7 +6,7 @@ const Semester = require("../models/Semester");
 const FacultyProfile = require("../models/FacultyProfile");
 
 // =========================================================
-// 1. Get My Weekly Schedule (Active Semester Only)
+// 1. Get My Weekly Schedule (Active Semester Only) - STUDENT
 // =========================================================
 exports.getMyTimetable = async (req, res) => {
   try {
@@ -52,7 +52,7 @@ exports.getMyTimetable = async (req, res) => {
 };
 
 // =========================================================
-// 2. Add a Class Slot (With Room & Faculty Conflict Checks)
+// 2. Add a Class Slot (With Room & Faculty Conflict Checks) - ADMIN
 // =========================================================
 exports.addSlot = async (req, res) => {
   try {
@@ -106,7 +106,7 @@ exports.addSlot = async (req, res) => {
 };
 
 // =========================================================
-// 3. Get My DAILY Schedule (For Dashboard Home Widget)
+// 3. Get My DAILY Schedule (For Dashboard Home Widget) - SHARED
 // =========================================================
 exports.getMyDailySchedule = async (req, res) => {
   try {
@@ -159,6 +159,39 @@ exports.getMyDailySchedule = async (req, res) => {
 
   } catch (err) {
     console.error("Daily Schedule Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// =========================================================
+// 4. Get Specific Faculty's Weekly Schedule - FACULTY
+// =========================================================
+exports.getFacultyTimetable = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // 1. Find Faculty Profile
+    const faculty = await FacultyProfile.findOne({ userId });
+    if (!faculty) return res.status(404).json({ error: "Faculty profile not found" });
+
+    // 2. Find all Courses taught by this Faculty
+    const myCourses = await CourseOffering.find({ facultyId: faculty._id }).select("_id");
+    const courseIds = myCourses.map(c => c._id);
+
+    // 3. Find Timetable entries for these courses
+    // Note: 'roomId' is just a String in your AddSlot function (roomNumber), not a Ref. 
+    // If you changed it to a Ref, keep populate. If it's just a string, remove populate("roomId").
+    // Based on addSlot above, it looks like 'roomNumber' is stored directly. 
+    const schedule = await Timetable.find({ courseOfferingId: { $in: courseIds } })
+      .populate({
+        path: "courseOfferingId",
+        populate: { path: "courseId", select: "name code" }
+      })
+      .sort({ dayOfWeek: 1, startTime: 1 });
+
+    res.json(schedule);
+  } catch (err) {
+    console.error("Faculty Timetable Error:", err);
     res.status(500).json({ error: err.message });
   }
 };

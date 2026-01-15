@@ -26,10 +26,21 @@ import LeaveManager from "./pages/admin/LeaveManager";
 // Import Student Pages
 import StudentFeedback from "./pages/student/StudentFeedback";
 import ElectiveSelector from "./pages/student/ElectiveSelector";
-import IDCardGenerator from "./pages/student/IDCardGenerator"; // 👈 1. Import IDCardGenerator
+import IDCardGenerator from "./pages/student/IDCardGenerator";
+import StudentDashboard from "./pages/student/StudentDashboard"; 
+import ViewResults from "./pages/student/ViewResults"; 
 
 // Import Faculty Pages
+import FacultyDashboard from "./pages/faculty/FacultyDashboard";
+import MyCourses from "./pages/faculty/MyCourses";
+import AttendanceEntry from "./pages/faculty/AttendanceEntry";
+import MarksEntry from "./pages/faculty/MarksEntry";
 import ApplyLeave from "./pages/faculty/ApplyLeave";
+import MySchedule from "./pages/faculty/MySchedule";
+import MyPerformance from "./pages/faculty/MyPerformance"; // 👈 1. Added Import
+
+// Import Shared Pages
+import CourseResources from "./pages/shared/CourseResources";
 
 function App() {
   return (
@@ -70,10 +81,15 @@ function App() {
           {/* ============================== */}
           <Route element={<ProtectedRoute allowedRoles={['faculty']} />}>
             <Route path="/faculty" element={<FacultyLayout />}>
-              <Route index element={<Navigate to="/faculty/leave" replace />} />
+              <Route index element={<FacultyDashboard />} />
               
+              <Route path="schedule" element={<MySchedule />} />
+              <Route path="courses" element={<MyCourses />} />
+              <Route path="resources/:offeringId" element={<CourseResources />} />
+              <Route path="attendance/:offeringId" element={<AttendanceEntry />} />
+              <Route path="marks" element={<MarksEntry />} />
+              <Route path="performance" element={<MyPerformance />} /> {/* 👈 2. Added Route */}
               <Route path="leave" element={<ApplyLeave />} />
-              {/* Add other faculty routes (Dashboard, Marks Entry, etc.) here */}
             </Route>
           </Route>
 
@@ -82,12 +98,13 @@ function App() {
           {/* ============================== */}
           <Route element={<ProtectedRoute allowedRoles={['student']} />}>
             <Route path="/student" element={<StudentLayout />}>
-              <Route index element={<Navigate to="/student/feedback" replace />} /> 
+              <Route index element={<StudentDashboard />} />
               
               <Route path="feedback" element={<StudentFeedback />} />
               <Route path="electives" element={<ElectiveSelector />} />
-              <Route path="id-card" element={<IDCardGenerator />} /> {/* 👈 2. Add ID Card Route */}
-              {/* Add other student routes (Dashboard, Results, etc.) here */}
+              <Route path="resources/:offeringId" element={<CourseResources />} />
+              <Route path="id-card" element={<IDCardGenerator />} />
+              <Route path="results" element={<ViewResults />} />
             </Route>
           </Route>
 

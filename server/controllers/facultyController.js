@@ -4,6 +4,7 @@ const FacultyProfile = require("../models/FacultyProfile");
 const Attendance = require("../models/Attendance");
 const Enrollment = require("../models/Enrollment");
 const Marks = require("../models/Marks");
+const Announcement = require("../models/Announcement");
 
 // =========================================================
 // 1. Get Courses Assigned to Logged-in Faculty
@@ -73,6 +74,7 @@ exports.getStudentsForCourse = async (req, res) => {
         _id: e.studentId._id, // StudentProfile ID
         name: e.studentId.userId.name,
         rollNumber: e.studentId.rollNumber,
+        email: e.studentId.userId.email, // 👈 ADDED: Required for "Contact Class" feature
         status: "PRESENT" // Default status for UI
       }));
 
@@ -178,5 +180,41 @@ exports.updateMarks = async (req, res) => {
   } catch (err) {
     console.error("Marks Error:", err);
     res.status(500).json({ error: "Failed to update marks" });
+  }
+};
+
+// =========================================================
+// 5. POST CLASS ANNOUNCEMENT (NEW)
+// =========================================================
+exports.postClassAnnouncement = async (req, res) => {
+  try {
+    const { courseOfferingId, title, message, isImportant } = req.body;
+    const userId = req.user.id; 
+
+    // Optional: Security Check to ensure faculty owns this course
+    const facultyProfile = await FacultyProfile.findOne({ userId });
+    const isOwner = await CourseOffering.exists({ 
+        _id: courseOfferingId, 
+        facultyId: facultyProfile._id 
+    });
+    
+    if (!isOwner) {
+        return res.status(403).json({ error: "You are not authorized to post notices for this course." });
+    }
+
+    // Create the notice linked to the Course and the User
+    const notice = await Announcement.create({
+      title,
+      message,
+      targetAudience: "STUDENT", // Matches your Enum
+      courseOfferingId,          // The Critical Link
+      createdBy: userId,         // Matches your Schema
+      isImportant: isImportant || false
+    });
+
+    res.status(201).json(notice);
+  } catch (err) {
+    console.error("Announcement Error:", err);
+    res.status(500).json({ error: err.message });
   }
 };

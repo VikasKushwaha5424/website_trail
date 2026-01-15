@@ -166,31 +166,65 @@ exports.getStudentMarks = async (req, res) => {
 };
 
 // =========================================================
-// 5. GET ANNOUNCEMENTS (With Expiry Logic)
+// 5. GET DASHBOARD ANNOUNCEMENTS (Global + Class Specific)
 // =========================================================
-exports.getAnnouncements = async (req, res) => {
+exports.getDashboardAnnouncements = async (req, res) => {
   try {
-    // Fetch notices that are for ALL or STUDENT, AND are not expired
+    const student = await StudentProfile.findOne({ userId: req.user.id });
+    if (!student) return res.status(404).json({ error: "Student not found" });
+
+    // 1. Find the student's Enrolled Courses (Active)
+    const enrollments = await Enrollment.find({ 
+        studentId: student._id, 
+        status: "ENROLLED" 
+    });
+    const myCourseIds = enrollments.map(e => e.courseOfferingId);
+
+    // 2. Fetch Logic: 
+    // Get (Global Notices) OR (My Specific Class Notices)
+    // AND Ensure they are not expired
     const notices = await Announcement.find({
-        targetAudience: { $in: ["ALL", "STUDENT"] },
-        $or: [
-            { expiresAt: { $exists: false } }, // No expiry field set
-            { expiresAt: null },               // Expiry is explicitly null
-            { expiresAt: { $gt: new Date() } } // Expiry date is in the future
-        ]
+      $and: [
+        {
+          $or: [
+            // Global: Audience is ALL or STUDENT, but NOT linked to a specific course
+            { 
+              targetAudience: { $in: ["ALL", "STUDENT"] }, 
+              courseOfferingId: null 
+            },
+            // Class Specific: Linked to one of my courses
+            { 
+              courseOfferingId: { $in: myCourseIds } 
+            }
+          ]
+        },
+        // Expiry Logic: Exists (false), Null, or Future
+        {
+          $or: [
+            { expiresAt: { $exists: false } }, 
+            { expiresAt: null },               
+            { expiresAt: { $gt: new Date() } } 
+          ]
+        }
+      ]
     })
+    .populate({
+      path: "courseOfferingId",
+      populate: { path: "courseId", select: "name code" } // Show "CS101"
+    })
+    .populate("createdBy", "name") // Show "Prof. X"
     .sort({ createdAt: -1 }) // Newest first
-    .limit(20); 
+    .limit(20);
 
     res.json(notices);
-  } catch (error) {
-    console.error("Notice Error:", error.message);
-    res.status(500).json({ message: "Server Error" });
+  } catch (err) {
+    console.error("Announcement Error:", err);
+    res.status(500).json({ error: err.message });
   }
 };
 
 // =========================================================
-// 6. GET ID CARD DETAILS (For PDF Generator) 👈 ADDED HERE
+// 6. GET ID CARD DETAILS (For PDF Generator)
 // =========================================================
 exports.getIDCardDetails = async (req, res) => {
   try {

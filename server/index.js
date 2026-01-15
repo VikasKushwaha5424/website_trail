@@ -11,7 +11,6 @@ const { Server } = require("socket.io");
 // 🛡️ SECURITY PACKAGES
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-// const mongoSanitize = require("express-mongo-sanitize"); // ❌ Removed dependency to fix crash
 
 // 2. Import Routes
 const authRoute = require("./routes/authRoutes"); 
@@ -27,6 +26,7 @@ const marksRoute = require("./routes/marksRoutes");
 const feedbackRoute = require("./routes/feedbackRoutes");
 const leaveRoute = require("./routes/leaveRoutes");
 const electiveRoute = require("./routes/electiveRoutes"); 
+const resourceRoute = require("./routes/resourceRoutes"); // 👈 1. Added Import
 
 // 3. Connect to Database
 connectDB();
@@ -47,6 +47,7 @@ require("./models/Hostel");
 require("./models/ExamSchedule"); 
 require("./models/Feedback"); 
 require("./models/Leave");
+require("./models/Resource"); // 👈 2. Added Model Registration
 
 // 5. Initialize Express
 const app = express();
@@ -66,7 +67,7 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// 🛡️ CUSTOM NOSQL INJECTION PROTECTION (Replaces mongoSanitize)
+// 🛡️ CUSTOM NOSQL INJECTION PROTECTION
 // Recursively removes keys starting with '$' or containing '.'
 const sanitizeInput = (obj) => {
     if (!obj || typeof obj !== 'object') return obj;
@@ -110,6 +111,7 @@ app.use("/api/marks", marksRoute);
 app.use("/api/feedback", feedbackRoute);
 app.use("/api/leaves", leaveRoute);
 app.use("/api/electives", electiveRoute); 
+app.use("/api/resources", resourceRoute); // 👈 3. Added Route Mount
 
 // 8. Basic Test Route
 app.get("/", (req, res) => {
