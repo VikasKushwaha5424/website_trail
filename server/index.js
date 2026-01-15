@@ -11,7 +11,7 @@ const { Server } = require("socket.io");
 // 🛡️ SECURITY PACKAGES
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const mongoSanitize = require("express-mongo-sanitize");
+// const mongoSanitize = require("express-mongo-sanitize"); // ❌ Removed dependency to fix crash
 
 // 2. Import Routes
 const authRoute = require("./routes/authRoutes"); 
@@ -26,7 +26,7 @@ const hostelRoute = require("./routes/hostelRoutes");
 const marksRoute = require("./routes/marksRoutes"); 
 const feedbackRoute = require("./routes/feedbackRoutes");
 const leaveRoute = require("./routes/leaveRoutes");
-const electiveRoute = require("./routes/electiveRoutes"); // 👈 ADDED: Import Elective Route
+const electiveRoute = require("./routes/electiveRoutes"); 
 
 // 3. Connect to Database
 connectDB();
@@ -66,8 +66,33 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// ❌ COMMENTED OUT TO FIX CRASH (Incompatible with Express 5)
-// app.use(mongoSanitize()); 
+// 🛡️ CUSTOM NOSQL INJECTION PROTECTION (Replaces mongoSanitize)
+// Recursively removes keys starting with '$' or containing '.'
+const sanitizeInput = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    // Handle Arrays
+    if (Array.isArray(obj)) {
+        return obj.map(item => sanitizeInput(item));
+    }
+
+    for (const key in obj) {
+        if (key.startsWith('$') || key.includes('.')) {
+            delete obj[key]; // Remove dangerous key
+        } else {
+            sanitizeInput(obj[key]); // Recurse
+        }
+    }
+    return obj;
+};
+
+// Apply sanitization to Body, Query, and Params
+app.use((req, res, next) => {
+    req.body = sanitizeInput(req.body);
+    req.query = sanitizeInput(req.query);
+    req.params = sanitizeInput(req.params);
+    next();
+});
 
 // ==========================================
 
@@ -84,7 +109,7 @@ app.use("/api/hostel", hostelRoute);
 app.use("/api/marks", marksRoute);
 app.use("/api/feedback", feedbackRoute);
 app.use("/api/leaves", leaveRoute);
-app.use("/api/electives", electiveRoute); // 👈 ADDED: Register Elective Route
+app.use("/api/electives", electiveRoute); 
 
 // 8. Basic Test Route
 app.get("/", (req, res) => {

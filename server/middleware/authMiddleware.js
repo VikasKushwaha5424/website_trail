@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { ROLES } = require("../config/roles"); // 👈 Import
 
 // =========================================================
 // 1️⃣ PROTECT: Verify Token & Load User
@@ -51,9 +52,10 @@ exports.protect = async (req, res, next) => {
 // 2️⃣ FACULTY ONLY: Specific Role Check
 // =========================================================
 exports.facultyOnly = (req, res, next) => {
-  const allowedRoles = ['faculty', 'FACULTY', 'admin', 'ADMIN'];
+  // ✅ FIX: Use constants
+  const allowedRoles = [ROLES.FACULTY, ROLES.ADMIN];
   
-  // Safety check: Ensure req.user exists before checking role
+  // Note: We use exact matching here now. Ensure DB roles match the constants.
   if (req.user && allowedRoles.includes(req.user.role)) {
     next();
   } else {
@@ -75,12 +77,11 @@ exports.authorize = (...roles) => {
         return res.status(401).json({ message: "Not authorized. User context missing." });
     }
 
-    const userRole = req.user.role.toLowerCase();
-    const allowedRoles = roles.map(r => r.toLowerCase());
-
-    if (!allowedRoles.includes(userRole)) {
+    // Ensure we compare apples to apples
+    const userRole = req.user.role;
+    if (!roles.includes(userRole)) {
       return res.status(403).json({ 
-        message: `Access Denied: Role '${req.user.role}' is not authorized.` 
+        message: `Access Denied: Role '${userRole}' is not authorized.` 
       });
     }
     next();

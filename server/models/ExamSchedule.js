@@ -15,14 +15,18 @@ const examScheduleSchema = new mongoose.Schema({
     type: Date, 
     required: true 
   },
+  
+  // 🕒 STORE AS MINUTES FROM MIDNIGHT (e.g., 9:00 AM -> 540)
+  // This standardizes time comparison across the app
   startTime: { 
-    type: String, // Format "HH:mm" e.g. "09:00"
+    type: Number, 
     required: true 
   },
   endTime: { 
-    type: String, 
+    type: Number, 
     required: true 
   },
+  
   roomNumber: { 
     type: String, 
     required: true 

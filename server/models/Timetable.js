@@ -14,7 +14,8 @@ const timetableSchema = new mongoose.Schema({
     required: true
   },
 
-  // 24-Hour Format (e.g., 900 for 9:00 AM, 1430 for 2:30 PM)
+  // 🕒 STORE AS MINUTES FROM MIDNIGHT (e.g., 9:00 AM = 540, 2:30 PM = 870)
+  // This allows correct sorting (e.g. 540 < 600) and easier math for duration/overlaps
   startTime: { type: Number, required: true }, 
   endTime: { type: Number, required: true },
 
@@ -26,8 +27,8 @@ const timetableSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // 🛡️ Conflict Check Index
-// Ensure a Room isn't double-booked at the same time on the same day
-// (Note: This is a basic index; complex overlaps need code-level validation)
+// Ensure a Room isn't double-booked at the exact same start time on the same day
+// (Note: Complex overlapping ranges are handled by logic in adminController.js)
 timetableSchema.index({ roomNumber: 1, dayOfWeek: 1, startTime: 1 }, { unique: true });
 
 module.exports = mongoose.model("Timetable", timetableSchema);

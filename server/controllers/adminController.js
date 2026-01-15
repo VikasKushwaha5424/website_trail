@@ -16,6 +16,21 @@ const Classroom = require("../models/Classroom");
 const ExamSchedule = require("../models/ExamSchedule"); 
 const Attendance = require("../models/Attendance");
 
+// 🔑 IMPORT CONSTANTS (Magic Strings Fix)
+const { ROLES } = require("../config/roles");
+
+// =========================================================
+// 🕒 HELPER: Convert "HH:mm" String to Minutes (Integer)
+// This ensures 9:00 AM (540) is mathematically less than 10:00 AM (600)
+// =========================================================
+const convertToMinutes = (timeStr) => {
+  if (typeof timeStr === 'number') return timeStr; // Already a number? Return it.
+  if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(":")) {
+    throw new Error(`Invalid time format '${timeStr}'. Expected HH:mm`);
+  }
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+};
 
 // =========================================================
 // 1. ADD USER (Robust: Handles Student/Faculty + Rollback)
@@ -31,14 +46,35 @@ exports.addUser = async (req, res) => {
     
     let { departmentId } = req.body;
 
-    // 1. Validate Department (Helper to convert Code -> ID if needed)
-    if (departmentId && !departmentId.match(/^[0-9a-fA-F]{24}$/)) {
-        const dept = await Department.findOne({ code: departmentId }); 
-        if (!dept) {
-            return res.status(400).json({ error: `Invalid Department Code: ${departmentId}` });
-        }
-        departmentId = dept._id;
+    // ---------------------------------------------------------
+    // 1. DEPARTMENT VALIDATION & RESOLUTION
+    // ---------------------------------------------------------
+
+    // A. Immediate Check: Faculty MUST have a department
+    // ✅ FIX: Use ROLES constant
+    if (role === ROLES.FACULTY && !departmentId) {
+        return res.status(400).json({ message: "Department ID is required for Faculty accounts." });
     }
+
+    // B. Resolve & Verify Department (if provided)
+    if (departmentId) {
+        // Case 1: Input looks like a MongoDB ID -> Verify it exists
+        if (departmentId.match(/^[0-9a-fA-F]{24}$/)) {
+            const deptExists = await Department.findById(departmentId);
+            if (!deptExists) {
+                return res.status(400).json({ error: `Department not found with ID: ${departmentId}` });
+            }
+        } 
+        // Case 2: Input is likely a Code (e.g. "CSE") -> Resolve to ID
+        else {
+            const dept = await Department.findOne({ code: departmentId }); 
+            if (!dept) {
+                return res.status(400).json({ error: `Invalid Department Code: ${departmentId}` });
+            }
+            departmentId = dept._id; // Replace string code with actual ObjectId
+        }
+    }
+    // ---------------------------------------------------------
 
     // 2. Check if user exists
     let userExists = await User.findOne({ email });
@@ -53,7 +89,7 @@ exports.addUser = async (req, res) => {
       name, 
       email, 
       passwordHash: hashedPassword, 
-      role, // "student", "faculty", "admin"
+      role, 
       rollNumber: rollNumber || undefined,
       isActive: true
     });
@@ -61,7 +97,8 @@ exports.addUser = async (req, res) => {
     // 5. Create Specific Profile based on Role
     // ⚠️ CRITICAL: If this fails, we catch it and delete the 'user'
     try {
-      if (role.toLowerCase() === "student") {
+      // ✅ FIX: Use ROLES constants
+      if (role === ROLES.STUDENT) {
         
         const nameParts = name.trim().split(" ");
         const firstName = nameParts[0];
@@ -69,7 +106,7 @@ exports.addUser = async (req, res) => {
 
         await StudentProfile.create({
           userId: user._id,
-          departmentId: departmentId || null, // Can be null initially
+          departmentId: departmentId || null, // Can be null initially for students
           rollNumber: rollNumber || "TEMP-" + Date.now(), 
           firstName,      
           lastName,       
@@ -77,10 +114,9 @@ exports.addUser = async (req, res) => {
           currentStatus: "ACTIVE"
         });
 
-      } else if (role.toLowerCase() === "faculty") {
-        if (!departmentId) {
-             throw new Error("Department ID is required for Faculty");
-        }
+      } else if (role === ROLES.FACULTY) {
+        if (!departmentId) throw new Error("Department ID is required for Faculty");
+        
         await FacultyProfile.create({
           userId: user._id,
           departmentId,
@@ -129,7 +165,6 @@ exports.addDepartment = async (req, res) => {
     const dept = await Department.create({ name, code });
     res.status(201).json(dept);
   } catch (err) {
-    console.error("Add Dept Error:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -140,7 +175,7 @@ exports.addDepartment = async (req, res) => {
 exports.getAllDepartments = async (req, res) => {
   try {
     const depts = await Department.find();
-    res.json(depts); // Returns array directly [ {name, code}, ... ]
+    res.json(depts);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -155,24 +190,19 @@ exports.addCourse = async (req, res) => {
     const course = await Course.create({ name, code, credits, departmentId });
     res.status(201).json(course);
   } catch (err) {
-    console.error("Add Course Error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
 // =========================================================
-// 5. CREATE SEMESTER (Handles "Single Active" Rule)
+// 5. CREATE SEMESTER
 // =========================================================
 exports.createSemester = async (req, res) => {
   try {
     const { name, code, academicYear, startDate, endDate, isActive } = req.body;
 
-    // Validate Dates
-    if (new Date(startDate) >= new Date(endDate)) {
-        return res.status(400).json({ error: "Start Date must be before End Date" });
-    }
+    // Validation is now handled by 'validateSemester' middleware in route
 
-    // If this new semester is set to ACTIVE, deactivate ALL others first
     if (isActive === true) {
         await Semester.updateMany({}, { isActive: false });
     }
@@ -184,42 +214,33 @@ exports.createSemester = async (req, res) => {
     res.status(201).json({ message: "Semester Created Successfully", semester });
 
   } catch (err) {
-    console.error("Create Semester Error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
 // =========================================================
-// 6. ASSIGN FACULTY TO COURSE (Race-Condition Free + FIXED ID)
+// 6. ASSIGN FACULTY TO COURSE
 // =========================================================
 exports.assignFaculty = async (req, res) => {
   try {
     const { facultyId, courseId, semesterId } = req.body;
     
-    // 🔍 FIX: Resolve 'User ID' (from frontend) to 'FacultyProfile ID'
-    // The CourseOffering model links to FacultyProfile, not User.
     const facultyProfile = await FacultyProfile.findOne({ userId: facultyId });
     if (!facultyProfile) {
         return res.status(404).json({ message: "Faculty Profile not found for this user." });
     }
 
     let targetSemesterId = semesterId;
-
-    // If no ID provided, find the system's current active semester
     if (!targetSemesterId) {
         const activeSemesters = await Semester.find({ isActive: true });
-
         if (activeSemesters.length === 0) {
-            return res.status(400).json({ error: "No Active Semester found. Please create one first." });
+            return res.status(400).json({ error: "No Active Semester found." });
         }
-        // If multiple active (edge case), pick the first one
         targetSemesterId = activeSemesters[0]._id;
     }
 
-    // Create the assignment
-    // (Ensure you have a unique compound index on { facultyId, courseId, semesterId } in your Model)
     await CourseOffering.create({ 
-        facultyId: facultyProfile._id, // 👈 FIX: Use Profile ID
+        facultyId: facultyProfile._id, 
         courseId,
         semesterId: targetSemesterId 
     });
@@ -227,40 +248,59 @@ exports.assignFaculty = async (req, res) => {
     res.status(200).json({ message: "Faculty assigned to course successfully" });
 
   } catch (err) {
-    // 🛡️ RACE CONDITION HANDLER (Duplicate Entry)
     if (err.code === 11000) {
-        return res.status(400).json({ 
-            message: "Faculty is already assigned to this course for the selected semester." 
-        });
+        return res.status(400).json({ message: "Faculty is already assigned to this course." });
     }
-    console.error("Assign Faculty Error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
 // =========================================================
-// 7. ENROLL STUDENT IN A COURSE (Atomic & Safe + FIXED ID)
+// 7. ENROLL STUDENT (Atomic + Anti-Duplicate Fix)
 // =========================================================
 exports.enrollStudent = async (req, res) => {
   try {
     const { studentId, courseOfferingId } = req.body;
 
-    // 🔍 FIX: Resolve 'User ID' (from frontend) to 'StudentProfile ID'
+    // 1. Resolve 'User ID' to 'StudentProfile ID'
     const studentProfile = await StudentProfile.findOne({ userId: studentId });
     if (!studentProfile) {
-         return res.status(404).json({ message: "Student Profile not found for this user." });
+         return res.status(404).json({ message: "Student Profile not found." });
     }
     const targetStudentId = studentProfile._id;
 
-    // 1. Prevent Duplicate Enrollment
-    // Use targetStudentId (Profile ID) not studentId (User ID)
-    const existingEnrollment = await Enrollment.findOne({ studentId: targetStudentId, courseOfferingId });
+    // -----------------------------------------------------
+    // 🚨 FIX: Prevent Multi-Section Enrollment
+    // -----------------------------------------------------
+    
+    // A. Get details of the requested offering
+    const targetOffering = await CourseOffering.findById(courseOfferingId);
+    if (!targetOffering) {
+        return res.status(404).json({ message: "Course Offering not found" });
+    }
+
+    // B. Find ALL offerings for this specific Course in this Semester
+    const siblingOfferings = await CourseOffering.find({
+        courseId: targetOffering.courseId,
+        semesterId: targetOffering.semesterId
+    }).select("_id");
+
+    const validOfferingIds = siblingOfferings.map(off => off._id);
+
+    // C. Check if student is already enrolled in ANY of these sections
+    const existingEnrollment = await Enrollment.findOne({
+      studentId: targetStudentId,
+      courseOfferingId: { $in: validOfferingIds },
+      status: "ENROLLED"
+    });
+
     if (existingEnrollment) {
-      return res.status(400).json({ message: "Student is already enrolled in this class." });
+      return res.status(400).json({ 
+          message: "Student is already enrolled in this course (or another section of it)." 
+      });
     }
 
     // 2. ATOMIC CAPACITY CHECK & RESERVATION
-    // Only update if currentEnrollment < capacity
     const offering = await CourseOffering.findOneAndUpdate(
       { 
         _id: courseOfferingId, 
@@ -271,17 +311,13 @@ exports.enrollStudent = async (req, res) => {
     );
 
     if (!offering) {
-        // Double check if course exists to give better error
-        const checkExists = await CourseOffering.findById(courseOfferingId);
-        if (!checkExists) return res.status(404).json({ message: "Course Offering not found" });
-        
-        return res.status(400).json({ message: `Enrollment Failed: Class is Full (Capacity: ${checkExists.capacity})` });
+        return res.status(400).json({ message: "Enrollment Failed: Class is Full" });
     }
 
     // 3. Create Enrollment Record
     try {
         const enrollment = await Enrollment.create({
-          studentId: targetStudentId, // 👈 FIX: Use Profile ID
+          studentId: targetStudentId,
           courseOfferingId,
           status: "ENROLLED"
         });
@@ -289,13 +325,8 @@ exports.enrollStudent = async (req, res) => {
         res.status(201).json({ message: "Student Enrolled Successfully", enrollment });
 
     } catch (enrollError) {
-        // 🛑 ROLLBACK: Release the reserved spot if insert fails
-        console.error("Enrollment creation failed. Rolling back capacity...", enrollError);
+        // 🛑 ROLLBACK
         await CourseOffering.findByIdAndUpdate(courseOfferingId, { $inc: { currentEnrollment: -1 } });
-        
-        if (enrollError.code === 11000) {
-            return res.status(400).json({ message: "Student is already enrolled in this class." });
-        }
         throw enrollError;
     }
 
@@ -306,104 +337,123 @@ exports.enrollStudent = async (req, res) => {
 };
 
 // =========================================================
-// 8. BROADCAST NOTICE (Targeted + Saved to DB)
+// 8. BROADCAST NOTICE
 // =========================================================
 exports.broadcastNotice = async (req, res) => {
   try {
     const { title, message, target } = req.body;
 
-    // A. SAVE TO DATABASE (So it shows up in the Student Dashboard later)
     await Announcement.create({
         title,
         content: message,
         targetAudience: target || "ALL",
         date: new Date(),
-        createdBy: req.user.id // 👈 FIX: Added required 'createdBy' field
+        createdBy: req.user.id
     });
 
-    // B. SEND REAL-TIME ALERT (Socket.io)
     const io = req.app.get("socketio");
     if (io) {
-        const payload = {
-            title,
-            message,
-            time: new Date().toLocaleTimeString()
-        };
-
+        const payload = { title, message, time: new Date().toLocaleTimeString() };
         if (target && target !== "ALL") {
-            // 🎯 Send to Specific Room
             io.to(target).emit("receive_notice", { ...payload, target });
-            console.log(`📢 Notice sent to room: ${target}`);
         } else {
-            // 🌍 Send to Global
             io.emit("receive_notice", { ...payload, target: "ALL" });
-            console.log(`📢 Global notice sent`);
         }
     }
-
     res.json({ message: "📢 Notice Posted & Broadcasted Successfully!" });
-
   } catch (err) {
-    console.error("Broadcast Error:", err);
     res.status(500).json({ error: "Failed to send notice" });
   }
 };
 
 // =========================================================
-// 9. GET ALL USERS (Pagination + Filtering)
+// 9. GET ALL USERS (With Pagination, Filtering & Search)
 // =========================================================
 exports.getAllUsers = async (req, res) => {
   try {
+    // 1. Extract Query Parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const role = req.query.role; // Optional: Filter by 'student' or 'faculty'
+    const role = req.query.role; 
+    const search = req.query.search; // 👈 New Search Parameter
 
+    // 2. Build Query Object
     const query = {};
+
+    // Filter by Role (if provided)
     if (role) {
-      query.role = role;
+        query.role = role;
     }
 
-    // 1. Calculate Pagination
-    const startIndex = (page - 1) * limit;
-    const total = await User.countDocuments(query);
+    // 🔎 SEARCH LOGIC: Match Name OR Email (Case Insensitive)
+    if (search) {
+        // Clean the input to prevent Regex Injection (basic safety)
+        const searchRegex = new RegExp(search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i');
+        
+        query.$or = [
+            { name: searchRegex },
+            { email: searchRegex }
+        ];
+    }
 
-    // 2. Fetch Users (Exclude Password)
+    // 3. Calculate Pagination
+    const startIndex = (page - 1) * limit;
+    const total = await User.countDocuments(query); // Count filtered results
+
+    // 4. Fetch Data
     const users = await User.find(query)
-      .select("-passwordHash") // Security: Never send passwords
+      .select("-passwordHash") // Security: Don't send passwords
       .sort({ createdAt: -1 }) // Newest first
       .skip(startIndex)
       .limit(limit);
 
-    // 3. Send Response
+    // 5. Send Response
     res.status(200).json({
       success: true,
       count: users.length,
       total,
-      pagination: {
-        current: page,
-        pages: Math.ceil(total / limit),
+      pagination: { 
+          current: page, 
+          pages: Math.ceil(total / limit) 
       },
       data: users,
     });
+
   } catch (err) {
-    console.error("Get All Users Error:", err);
+    console.error("Get Users Error:", err);
     res.status(500).json({ error: "Failed to fetch users" });
   }
 };
 
 // =========================================================
-// 10. GET ALL COURSES (With Department Details)
+// 10. GET ALL COURSES (With Pagination)
 // =========================================================
 exports.getAllCourses = async (req, res) => {
   try {
-    // Populate 'departmentId' to show the actual Department Name, not just the ID
+    // 1. Pagination Params
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const startIndex = (page - 1) * limit;
+
+    // 2. Count Total
+    const total = await Course.countDocuments();
+
+    // 3. Fetch Data with Pagination
     const courses = await Course.find()
       .populate("departmentId", "name code") 
-      .sort({ name: 1 });
+      .sort({ name: 1 }) // Alphabetical order
+      .skip(startIndex)
+      .limit(limit);
 
+    // 4. Send Response
     res.status(200).json({
       success: true,
       count: courses.length,
+      total,
+      pagination: {
+        current: page,
+        pages: Math.ceil(total / limit),
+      },
       data: courses,
     });
   } catch (err) {
@@ -413,14 +463,14 @@ exports.getAllCourses = async (req, res) => {
 };
 
 // =========================================================
-// 11. GET DASHBOARD STATS (Widgets Data)
+// 11. GET DASHBOARD STATS
 // =========================================================
 exports.getDashboardStats = async (req, res) => {
   try {
-    // Run these queries in parallel for speed
     const [studentCount, facultyCount, activeSemester, totalCourses] = await Promise.all([
-      User.countDocuments({ role: "student" }),
-      User.countDocuments({ role: "faculty" }),
+      // ✅ FIX: Use ROLES constants
+      User.countDocuments({ role: ROLES.STUDENT }),
+      User.countDocuments({ role: ROLES.FACULTY }),
       Semester.findOne({ isActive: true }).select("name code startDate endDate"),
       Course.countDocuments(),
     ]);
@@ -435,48 +485,36 @@ exports.getDashboardStats = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Dashboard Stats Error:", err);
     res.status(500).json({ error: "Failed to fetch dashboard stats" });
   }
 };
 
 // =========================================================
-// 12. UPDATE USER (Handles User + Profile split)
+// 12. UPDATE USER
 // =========================================================
 exports.updateUser = async (req, res) => {
   try {
-    const { userId } = req.body; // or req.params.id
+    const { userId } = req.body; 
     const { name, email, role, ...profileData } = req.body;
 
-    // 1. Update Core User Data
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     if (name) user.name = name;
     if (email) user.email = email;
     if (role) user.role = role; 
-    // Note: Changing role is dangerous (orphaned profiles), usually disabled.
     
     await user.save();
 
-    // 2. Update Specific Profile
-    if (user.role === "student") {
-        await StudentProfile.findOneAndUpdate(
-            { userId: user._id },
-            { $set: profileData }, // Updates rollNumber, batchYear, etc.
-            { new: true }
-        );
-    } else if (user.role === "faculty") {
-        await FacultyProfile.findOneAndUpdate(
-            { userId: user._id },
-            { $set: profileData }, // Updates designation, qualification, etc.
-            { new: true }
-        );
+    // ✅ FIX: Use ROLES constants
+    if (user.role === ROLES.STUDENT) {
+        await StudentProfile.findOneAndUpdate({ userId: user._id }, { $set: profileData }, { new: true });
+    } else if (user.role === ROLES.FACULTY) {
+        await FacultyProfile.findOneAndUpdate({ userId: user._id }, { $set: profileData }, { new: true });
     }
 
     res.status(200).json({ message: "User updated successfully", user });
   } catch (err) {
-    console.error("Update User Error:", err);
     res.status(500).json({ error: "Failed to update user" });
   }
 };
@@ -486,47 +524,49 @@ exports.updateUser = async (req, res) => {
 // =========================================================
 exports.deleteUser = async (req, res) => {
   try {
-    const { userId } = req.body; // or req.params.id
+    // RESTful Standard ID param
+    const userId = req.params.id; 
+    
     const user = await User.findById(userId);
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    // ✅ FIX: Use ROLES constants
     // 🅰️ IF STUDENT: Cascade Delete Everything
-    if (user.role === "student") {
+    if (user.role === ROLES.STUDENT) {
         const studentProfile = await StudentProfile.findOne({ userId: userId });
         
         if (studentProfile) {
-            const studentId = studentProfile._id; // The Profile ID used in other tables
+            const studentId = studentProfile._id; 
 
-            // 1. Fix Course Enrollments (Decrement counts!)
+            // 1. Fix Course Enrollments
             const enrollments = await Enrollment.find({ studentId });
-            for (const enrollment of enrollments) {
-                await CourseOffering.findByIdAndUpdate(
+            
+            // Parallel Updates
+            await Promise.all(enrollments.map(enrollment => 
+                CourseOffering.findByIdAndUpdate(
                     enrollment.courseOfferingId,
                     { $inc: { currentEnrollment: -1 } }
-                );
-            }
+                )
+            ));
 
             // 2. Delete Related Data
             await Promise.all([
                 Enrollment.deleteMany({ studentId }),
-                // Marks.deleteMany({ studentId }), // Ensure Marks model is imported if used
-                // Attendance.deleteMany({ studentId }), // Ensure Attendance model is imported if used
                 StudentProfile.deleteOne({ _id: studentId })
             ]);
         }
     }
 
     // 🅱️ IF FACULTY: Check for Active Classes first
-    else if (user.role === "faculty") {
+    else if (user.role === ROLES.FACULTY) {
         const facultyProfile = await FacultyProfile.findOne({ userId: userId });
         
         if (facultyProfile) {
-            // Check if teaching any active course
             const activeClasses = await CourseOffering.countDocuments({ facultyId: facultyProfile._id });
             if (activeClasses > 0) {
                 return res.status(400).json({ 
-                    error: `Cannot delete Faculty. They are currently assigned to ${activeClasses} active classes. Reassign those classes first.` 
+                    error: `Cannot delete Faculty. They are currently assigned to ${activeClasses} active classes.` 
                 });
             }
             await FacultyProfile.deleteOne({ _id: facultyProfile._id });
@@ -550,15 +590,12 @@ exports.deleteUser = async (req, res) => {
 exports.updateCourse = async (req, res) => {
   try {
     const { courseId, name, code, credits, departmentId } = req.body;
-    
     const updatedCourse = await Course.findByIdAndUpdate(
         courseId,
         { name, code, credits, departmentId },
-        { new: true } // Return the updated doc
+        { new: true }
     );
-
     if (!updatedCourse) return res.status(404).json({ message: "Course not found" });
-
     res.status(200).json({ message: "Course updated", course: updatedCourse });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -566,18 +603,15 @@ exports.updateCourse = async (req, res) => {
 };
 
 // =========================================================
-// 15. DELETE COURSE (Safe Delete)
+// 15. DELETE COURSE
 // =========================================================
 exports.deleteCourse = async (req, res) => {
   try {
-    const { courseId } = req.body; // or params
-
-    // Safety: Don't delete a course if it's currently being taught
+    const { courseId } = req.body;
     const isBeingTaught = await CourseOffering.exists({ courseId });
     if (isBeingTaught) {
-        return res.status(400).json({ error: "Cannot delete this subject. It is currently being offered in an active semester." });
+        return res.status(400).json({ error: "Cannot delete this subject. It is currently being offered." });
     }
-
     await Course.findByIdAndDelete(courseId);
     res.status(200).json({ message: "Course deleted successfully" });
   } catch (err) {
@@ -586,31 +620,21 @@ exports.deleteCourse = async (req, res) => {
 };
 
 // =========================================================
-// 16. CREATE FEE STRUCTURE (Bulk Assign Fees)
+// 16. CREATE FEE STRUCTURE
 // =========================================================
 exports.createFeeStructure = async (req, res) => {
   try {
-    const { 
-      semesterId, 
-      type, // e.g. "TUITION"
-      amount, 
-      dueDate, 
-      departmentId, // Optional: Filter by Dept
-      batchYear     // Optional: Filter by Batch
-    } = req.body;
+    const { semesterId, type, amount, dueDate, departmentId, batchYear } = req.body;
 
-    // 1. Find Target Students
     const query = { currentStatus: "ACTIVE" };
     if (departmentId) query.departmentId = departmentId;
     if (batchYear) query.batchYear = batchYear;
 
     const students = await StudentProfile.find(query).select("_id");
-
     if (students.length === 0) {
       return res.status(404).json({ message: "No active students found for criteria." });
     }
 
-    // 2. Prepare Bulk Operations
     const feeDocs = students.map(student => ({
       studentId: student._id,
       semesterId,
@@ -620,22 +644,18 @@ exports.createFeeStructure = async (req, res) => {
       status: "PENDING"
     }));
 
-    // 3. Insert Many (Fast)
     await Fee.insertMany(feeDocs);
-
     res.status(201).json({ 
       message: `Fees assigned successfully to ${students.length} students.`,
       count: students.length 
     });
-
   } catch (err) {
-    console.error("Assign Fee Error:", err);
     res.status(500).json({ error: "Failed to create fee structure" });
   }
 };
 
 // =========================================================
-// 17. GET PENDING PAYMENTS (For Verification)
+// 17. GET PENDING PAYMENTS
 // =========================================================
 exports.getPendingPayments = async (req, res) => {
   try {
@@ -651,42 +671,33 @@ exports.getPendingPayments = async (req, res) => {
 };
 
 // =========================================================
-// 18. VERIFY PAYMENT (Approve/Reject)
+// 18. VERIFY PAYMENT
 // =========================================================
 exports.verifyPayment = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-
   try {
-    const { paymentId, action } = req.body; // action: "APPROVE" or "REJECT"
-
+    const { paymentId, action } = req.body;
     const payment = await Payment.findById(paymentId).session(session);
     if (!payment) throw new Error("Payment record not found");
 
-    if (payment.status !== "PENDING") {
-      throw new Error(`Payment is already ${payment.status}`);
-    }
+    if (payment.status !== "PENDING") throw new Error(`Payment is already ${payment.status}`);
 
     if (action === "APPROVE") {
-      // 1. Mark Payment as Success
       payment.status = "SUCCESS";
-      payment.receiptNumber = `RCP-${Date.now()}`; // Generate Receipt now
+      payment.receiptNumber = `RCP-${Date.now()}`;
       await payment.save({ session });
 
-      // 2. Update the Fee Record
       const fee = await Fee.findById(payment.feeId).session(session);
       if (fee) {
         fee.amountPaid += payment.amount;
-        // Update Status
         if (fee.amountPaid >= fee.amountDue) fee.status = "PAID";
         else fee.status = "PARTIAL";
-        
         await fee.save({ session });
       }
 
     } else if (action === "REJECT") {
       payment.status = "FAILED";
-      // Optional: Add a rejectionReason field to model if needed
       await payment.save({ session });
     } else {
       throw new Error("Invalid Action");
@@ -694,19 +705,16 @@ exports.verifyPayment = async (req, res) => {
 
     await session.commitTransaction();
     session.endSession();
-
     res.status(200).json({ message: `Payment ${action}D Successfully` });
-
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
-    console.error("Verify Payment Error:", err);
     res.status(400).json({ error: err.message });
   }
 };
 
 // =========================================================
-// 19. FEE STATISTICS (Extra Feature)
+// 19. FEE STATISTICS
 // =========================================================
 exports.getFeeStats = async (req, res) => {
   try {
@@ -727,104 +735,87 @@ exports.getFeeStats = async (req, res) => {
 };
 
 // =========================================================
-// 🕵️ HELPER: CLASH DETECTION LOGIC
-// Returns 'true' if a clash exists (used by Create/Update Timetable)
+// 🕵️ HELPER: CLASH DETECTION (Minutes Based)
 // =========================================================
 const checkClash = async ({ day, startTime, endTime, roomNumber, semesterId, facultyId, excludeId = null }) => {
-  
-  // 1. Convert "09:00" to minutes (e.g. 540) for easy comparison
-  const getMinutes = (timeStr) => {
-    const [h, m] = timeStr.split(":").map(Number);
-    return h * 60 + m;
-  };
-  const start = getMinutes(startTime);
-  const end = getMinutes(endTime);
+  // startTime and endTime are now INTEGERS (Minutes)
+  const start = parseInt(startTime); 
+  const end = parseInt(endTime);
 
-  // 2. Find POTENTIAL overlaps (Same Day + Same Semester)
-  // We check 3 types of clashes:
-  // A. Room is occupied
-  // B. Faculty is busy (need to lookup CourseOffering to get faculty)
-  
   const query = {
     dayOfWeek: day,
     semesterId: semesterId,
-    _id: { $ne: excludeId } // Exclude self for updates
+    _id: { $ne: excludeId }
   };
 
   const existingEntries = await Timetable.find(query).populate("courseOfferingId");
 
   for (const entry of existingEntries) {
-    const eStart = getMinutes(entry.startTime);
-    const eEnd = getMinutes(entry.endTime);
+    const eStart = entry.startTime; // Already minutes in DB
+    const eEnd = entry.endTime;
 
-    // Check Time Overlap: (StartA < EndB) and (EndA > StartB)
+    // Check Overlap
     if (start < eEnd && end > eStart) {
-      
-      // TYPE 1: ROOM CLASH
       if (entry.roomNumber === roomNumber) {
-        throw new Error(`Room ${roomNumber} is already booked from ${entry.startTime} to ${entry.endTime}`);
+        throw new Error(`Room ${roomNumber} is booked (${entry.startTime}-${entry.endTime})`);
       }
-
-      // TYPE 2: FACULTY CLASH (Prof can't be in two places)
-      // We assume facultyId is passed in to check against
       if (entry.courseOfferingId.facultyId.toString() === facultyId.toString()) {
-        throw new Error(`Faculty is already teaching ${entry.courseOfferingId.section} during this time.`);
+        throw new Error(`Faculty is busy during this time.`);
       }
-
-      // TYPE 3: STUDENT BATCH CLASH (Same Semester cannot have 2 classes)
-      // Since we filtered by semesterId in the query, any time overlap is a clash for students!
-      throw new Error(`This Semester already has a class scheduled at this time (${entry.startTime} - ${entry.endTime})`);
+      throw new Error(`Batch clash: Semester already has class at this time.`);
     }
   }
-  return false; // No clash
+  return false;
 };
 
 // =========================================================
-// 20. CREATE TIMETABLE ENTRY (Master Schedule)
+// 20. CREATE TIMETABLE ENTRY (Converts Time)
 // =========================================================
 exports.createTimetableEntry = async (req, res) => {
   try {
     const { courseOfferingId, dayOfWeek, startTime, endTime, roomNumber } = req.body;
 
-    // 1. Get Details for Clash Check
+    // 1. Convert Strings "HH:mm" to Minutes (Int)
+    const startMin = convertToMinutes(startTime);
+    const endMin = convertToMinutes(endTime);
+
+    if (startMin >= endMin) throw new Error("Start time must be before End time");
+
     const offering = await CourseOffering.findById(courseOfferingId);
     if (!offering) return res.status(404).json({ message: "Course Offering not found" });
 
-    // 2. Run Clash Detection
+    // 2. Run Clash Check
     await checkClash({
       day: dayOfWeek,
-      startTime,
-      endTime,
+      startTime: startMin,
+      endTime: endMin,
       roomNumber,
       semesterId: offering.semesterId,
       facultyId: offering.facultyId
     });
 
-    // 3. Save if safe
+    // 3. Save as Minutes
     const timetable = await Timetable.create({
       courseOfferingId,
       dayOfWeek,
-      startTime,
-      endTime,
+      startTime: startMin,
+      endTime: endMin,
       roomNumber,
       semesterId: offering.semesterId
     });
 
-    res.status(201).json({ message: "Slot scheduled successfully", timetable });
-
+    res.status(201).json({ message: "Slot scheduled", timetable });
   } catch (err) {
-    console.error("Timetable Error:", err.message);
     res.status(400).json({ error: err.message });
   }
 };
 
 // =========================================================
-// 21. GET TIMETABLE (Filtered View)
+// 21. GET TIMETABLE (Sorted Numerically)
 // =========================================================
 exports.getTimetable = async (req, res) => {
   try {
     const { semesterId, day } = req.query;
-    
     const query = {};
     if (semesterId) query.semesterId = semesterId;
     if (day) query.dayOfWeek = day;
@@ -832,18 +823,12 @@ exports.getTimetable = async (req, res) => {
     const schedule = await Timetable.find(query)
       .populate({
         path: "courseOfferingId",
-        populate: [
-           { path: "courseId", select: "name code" },
-           { path: "facultyId", select: "firstName lastName" }
-        ]
+        populate: [ { path: "courseId" }, { path: "facultyId" } ]
       })
-      .sort({ dayOfWeek: 1, startTime: 1 }); // Sorted Mon->Sat, 9am->5pm
+      .sort({ dayOfWeek: 1, startTime: 1 }); // Sort works perfectly with Numbers
 
     res.status(200).json({ count: schedule.length, data: schedule });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
 // =========================================================
@@ -851,7 +836,7 @@ exports.getTimetable = async (req, res) => {
 // =========================================================
 exports.deleteTimetableEntry = async (req, res) => {
   try {
-    const { id } = req.params; // Passed in URL /api/admin/timetable/:id
+    const { id } = req.params;
     await Timetable.findByIdAndDelete(id);
     res.status(200).json({ message: "Slot removed successfully" });
   } catch (err) {
@@ -860,48 +845,39 @@ exports.deleteTimetableEntry = async (req, res) => {
 };
 
 // =========================================================
-// 23. FIND FREE ROOMS (The "Free Slot Finder")
+// 23. FIND FREE ROOMS (Converts Time)
 // =========================================================
 exports.findFreeRooms = async (req, res) => {
   try {
     const { dayOfWeek, startTime, endTime } = req.body;
-    // Input example: { "dayOfWeek": "MONDAY", "startTime": 900, "endTime": 1030 }
+    
+    // Convert Inputs
+    const startMin = convertToMinutes(startTime);
+    const endMin = convertToMinutes(endTime);
 
-    // 1. Get ALL Classrooms
     const allClassrooms = await Classroom.find({ isActive: true });
     
-    // 2. Find BUSY Rooms (In the Master Timetable)
+    // Check overlaps using Minutes
     const busySlots = await Timetable.find({
         dayOfWeek,
         $or: [
-            // Check Overlap: (StartA < EndB) and (EndA > StartB)
-            { startTime: { $lt: endTime }, endTime: { $gt: startTime } }
+            { startTime: { $lt: endMin }, endTime: { $gt: startMin } }
         ]
     }).select("roomNumber");
 
     const busyRoomNumbers = busySlots.map(slot => slot.roomNumber);
-
-    // 3. Subtract Busy from All
     const freeRooms = allClassrooms.filter(room => !busyRoomNumbers.includes(room.roomNumber));
 
-    res.status(200).json({ 
-        totalRooms: allClassrooms.length,
-        busyCount: busyRoomNumbers.length,
-        freeRooms 
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    res.status(200).json({ totalRooms: allClassrooms.length, busyCount: busyRoomNumbers.length, freeRooms });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
 // =========================================================
-// 24. CLASSROOM MANAGEMENT (The Missing Piece!)
+// 24. CLASSROOM MANAGEMENT
 // =========================================================
 exports.addClassroom = async (req, res) => {
   try {
     const { roomNumber, capacity, type } = req.body; 
-    // Type could be "LECTURE_HALL", "LAB", "SEMINAR_HALL"
     const room = await Classroom.create({ roomNumber, capacity, type, isActive: true });
     res.status(201).json(room);
   } catch (err) {
@@ -928,102 +904,66 @@ exports.deleteClassroom = async (req, res) => {
 };
 
 // =========================================================
-// 🕵️ HELPER: EXAM CLASH DETECTION (Specific Date)
+// 🕵️ HELPER: EXAM CLASH DETECTION (Minutes Based)
 // =========================================================
 const checkExamClash = async ({ date, startTime, endTime, roomNumber, semesterId, facultyId }) => {
-  const getMinutes = (timeStr) => {
-    const [h, m] = timeStr.split(":").map(Number);
-    return h * 60 + m;
-  };
-  const start = getMinutes(startTime);
-  const end = getMinutes(endTime);
+  const start = parseInt(startTime);
+  const end = parseInt(endTime);
 
-  // Check specific DATE in ExamSchedule collection
-  // Note: We compare dates using ISO strings to ignore time components if needed, 
-  // but usually strict Date matching is fine if frontend sends YYYY-MM-DD 00:00:00.
-  // Here we assume 'date' is passed correctly as a Date object or ISO string.
-  
-  const query = {
-    date: new Date(date), // Ensure it matches the stored format
-    semesterId: semesterId
-  };
-
+  const query = { date: new Date(date), semesterId: semesterId };
   const existingExams = await ExamSchedule.find(query).populate("courseOfferingId");
 
   for (const entry of existingExams) {
-    const eStart = getMinutes(entry.startTime);
-    const eEnd = getMinutes(entry.endTime);
+    const eStart = entry.startTime;
+    const eEnd = entry.endTime;
 
-    // Overlap Check
     if (start < eEnd && end > eStart) {
-      if (entry.roomNumber === roomNumber) {
-        throw new Error(`Room ${roomNumber} is already booked for an exam on this date.`);
-      }
-      if (entry.courseOfferingId.facultyId.toString() === facultyId.toString()) {
-        throw new Error(`Faculty is already proctoring an exam at this time.`);
-      }
-      throw new Error(`This Semester already has an exam scheduled at this time.`);
+      if (entry.roomNumber === roomNumber) throw new Error(`Room ${roomNumber} booked for exam.`);
+      if (entry.courseOfferingId.facultyId.toString() === facultyId.toString()) throw new Error(`Faculty is proctoring.`);
+      throw new Error(`Semester exam clash.`);
     }
   }
   return false; 
 };
 
 // =========================================================
-// 25. EXAM SCHEDULER ACTIONS
+// 25. EXAM SCHEDULER ACTIONS (Converts Time)
 // =========================================================
-
 exports.addExamSlot = async (req, res) => {
   try {
     const { courseOfferingId, date, startTime, endTime, roomNumber } = req.body;
 
+    const startMin = convertToMinutes(startTime);
+    const endMin = convertToMinutes(endTime);
+
     const offering = await CourseOffering.findById(courseOfferingId);
     if (!offering) return res.status(404).json({ message: "Course Offering not found" });
 
-    // Run Exam Clash Check
     await checkExamClash({
-      date,
-      startTime,
-      endTime,
-      roomNumber,
-      semesterId: offering.semesterId,
-      facultyId: offering.facultyId
+      date, startTime: startMin, endTime: endMin, roomNumber,
+      semesterId: offering.semesterId, facultyId: offering.facultyId
     });
 
     const exam = await ExamSchedule.create({
-      courseOfferingId,
-      semesterId: offering.semesterId,
-      date,
-      startTime,
-      endTime,
-      roomNumber
+      courseOfferingId, semesterId: offering.semesterId,
+      date, startTime: startMin, endTime: endMin, roomNumber
     });
 
     res.status(201).json({ message: "Exam Scheduled", exam });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
+  } catch (err) { res.status(400).json({ error: err.message }); }
 };
 
 exports.getExamSchedule = async (req, res) => {
   try {
     const { date } = req.query;
-    // Filter by specific date if provided
     const query = date ? { date: new Date(date) } : {};
 
     const exams = await ExamSchedule.find(query)
-      .populate({
-         path: "courseOfferingId",
-         populate: [
-            { path: "courseId", select: "name code" },
-            { path: "facultyId", select: "firstName lastName" }
-         ]
-      })
-      .sort({ date: 1, startTime: 1 });
+      .populate({ path: "courseOfferingId", populate: [{ path: "courseId" }, { path: "facultyId" }] })
+      .sort({ date: 1, startTime: 1 }); // Numeric Sort
 
     res.status(200).json(exams);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
 exports.deleteExamSlot = async (req, res) => {
@@ -1036,23 +976,17 @@ exports.deleteExamSlot = async (req, res) => {
 };
 
 // =========================================================
-// 26. ATTENDANCE OVERSIGHT (Admin View & Fix)
+// 26. ATTENDANCE OVERSIGHT
 // =========================================================
-
-// A. View Attendance for a specific Class & Date
 exports.getAdminAttendance = async (req, res) => {
   try {
     const { courseOfferingId, date } = req.query;
     
-    // 1. Get the list of students enrolled in this course
-    // (We need this to show "Absent" students who have NO record)
     const enrollment = await require("../models/Enrollment").find({ courseOfferingId })
       .populate("studentId", "firstName lastName rollNumber");
 
     if (!enrollment.length) return res.json([]);
 
-    // 2. Get existing attendance records for this date
-    // Note: Date passing from frontend should be handled carefully (YYYY-MM-DD)
     const startOfDay = new Date(date); startOfDay.setHours(0,0,0,0);
     const endOfDay = new Date(date); endOfDay.setHours(23,59,59,999);
 
@@ -1061,7 +995,6 @@ exports.getAdminAttendance = async (req, res) => {
       date: { $gte: startOfDay, $lte: endOfDay }
     });
 
-    // 3. Merge Data (Combine Enrolled List with Attendance Status)
     const mergedData = enrollment.map(enrol => {
       const record = records.find(r => r.studentId.toString() === enrol.studentId._id.toString());
       return {
@@ -1078,18 +1011,16 @@ exports.getAdminAttendance = async (req, res) => {
   }
 };
 
-// B. Override/Fix Attendance (Admin Power)
 exports.updateAttendanceOverride = async (req, res) => {
   try {
     const { studentId, courseOfferingId, date, status } = req.body;
 
-    // Admin can update/upsert even if it was "Locked" by faculty
     const record = await Attendance.findOneAndUpdate(
       { studentId, courseOfferingId, date },
       { 
         status, 
-        markedBy: req.user.id, // Track that Admin changed it
-        isLocked: true // Keep it locked
+        markedBy: req.user.id, 
+        isLocked: true 
       },
       { new: true, upsert: true }
     );
@@ -1101,7 +1032,7 @@ exports.updateAttendanceOverride = async (req, res) => {
 };
 
 // =========================================================
-// 27. BATCH PROMOTION (Lifecycle Management)
+// 27. BATCH PROMOTION
 // =========================================================
 exports.promoteBatch = async (req, res) => {
   try {
@@ -1112,17 +1043,14 @@ exports.promoteBatch = async (req, res) => {
       return res.status(400).json({ error: "Invalid Semester" });
     }
 
-    // Base Query: Active students in the specific semester
     const query = { currentSemester: sem, currentStatus: "ACTIVE" };
-    
-    // Optional: Filter by Department (e.g., Promote only CS students)
     if (departmentId) {
       query.departmentId = departmentId;
     }
 
     let result;
     
-    // CASE A: Graduation (Sem 8 -> Graduated)
+    // Graduation
     if (sem === 8) {
       result = await StudentProfile.updateMany(query, {
         $set: { currentStatus: "GRADUATED" }
@@ -1131,8 +1059,7 @@ exports.promoteBatch = async (req, res) => {
         message: `🎓 Batch Graduated! ${result.modifiedCount} students marked as Alumni.` 
       });
     } 
-    
-    // CASE B: Standard Promotion (Sem X -> Sem X+1)
+    // Standard Promotion
     else {
       result = await StudentProfile.updateMany(query, {
         $inc: { currentSemester: 1 }
