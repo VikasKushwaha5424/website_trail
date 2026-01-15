@@ -37,10 +37,11 @@ import AttendanceEntry from "./pages/faculty/AttendanceEntry";
 import MarksEntry from "./pages/faculty/MarksEntry";
 import ApplyLeave from "./pages/faculty/ApplyLeave";
 import MySchedule from "./pages/faculty/MySchedule";
-import MyPerformance from "./pages/faculty/MyPerformance"; // 👈 1. Added Import
+import MyPerformance from "./pages/faculty/MyPerformance";
 
-// Import Shared Pages
-import CourseResources from "./pages/shared/CourseResources";
+
+// ✅ CORRECTED PATH: Since you moved the folder into 'pages', we import from there
+import CourseResources from "./pages/shared/CourseResources"; 
 
 function App() {
   return (
@@ -88,7 +89,7 @@ function App() {
               <Route path="resources/:offeringId" element={<CourseResources />} />
               <Route path="attendance/:offeringId" element={<AttendanceEntry />} />
               <Route path="marks" element={<MarksEntry />} />
-              <Route path="performance" element={<MyPerformance />} /> {/* 👈 2. Added Route */}
+              <Route path="performance" element={<MyPerformance />} />
               <Route path="leave" element={<ApplyLeave />} />
             </Route>
           </Route>

@@ -10,8 +10,8 @@ const {
   getStudentCourses, 
   getAttendanceStats,
   getStudentMarks,
-  getAnnouncements,
-  getIDCardDetails // 👈 ADDED: Import ID Card Controller
+  getDashboardAnnouncements, // 👈 CHANGED: Matches the new Controller export
+  getIDCardDetails 
 } = require("../controllers/studentController");
 
 // ==========================================
@@ -21,7 +21,7 @@ const {
 router.use(protect); 
 
 // 2. User must be a STUDENT (Faculty/Admins cannot peek at student data here)
-router.use(authorize("student", "STUDENT")); 
+router.use(authorize("student")); 
 
 // ==========================================
 // 🚦 ROUTES
@@ -39,10 +39,11 @@ router.get("/attendance", getAttendanceStats);
 // GET /api/student/marks (Results)
 router.get("/marks", getStudentMarks);
 
-// GET /api/student/notices (Announcements)
-router.get("/notices", getAnnouncements);
+// GET /api/student/announcements 
+// 👈 CHANGED: Path is now "/announcements" to match Frontend
+router.get("/announcements", getDashboardAnnouncements);
 
-// GET /api/student/id-card (ID Card Generator Data) 👈 ADDED ROUTE
+// GET /api/student/id-card (ID Card Generator Data)
 router.get("/id-card", getIDCardDetails);
 
 module.exports = router;
