@@ -27,7 +27,7 @@ exports.getStudentProfile = async (req, res) => {
 };
 
 // =========================================================
-// 2. GET TIMETABLE (Active Semester Only)
+// 2. GET TIMETABLE / MY COURSES (Active Semester Only)
 // =========================================================
 exports.getStudentCourses = async (req, res) => {
   try {
@@ -47,20 +47,22 @@ exports.getStudentCourses = async (req, res) => {
         match: { semesterId: activeSemester._id }, // 👈 ONLY fetch current semester offerings
         populate: [
           { path: "courseId", select: "name code credits" }, 
-          { path: "facultyId", populate: { path: "userId", select: "name" } } 
+          // Assuming FacultyProfile has firstName/lastName. Adjust if it uses userId for name.
+          { path: "facultyId", select: "firstName lastName" } 
         ]
       });
 
     // Format Data
-    const timetable = enrollments
-      .filter(enroll => enroll.courseOfferingId) // Remove nulls (past semesters)
+    const courses = enrollments
+      .filter(enroll => enroll.courseOfferingId) // Remove nulls (past semesters or invalid refs)
       .map(enroll => {
         const offering = enroll.courseOfferingId;
-        const facultyName = offering.facultyId && offering.facultyId.userId 
-          ? offering.facultyId.userId.name 
+        const facultyName = offering.facultyId 
+          ? `${offering.facultyId.firstName} ${offering.facultyId.lastName}`
           : "TBD";
 
         return {
+          _id: offering._id, // 👈 ADDED: Needed for Feedback Form
           courseName: offering.courseId.name,
           courseCode: offering.courseId.code,
           credits: offering.courseId.credits,
@@ -71,7 +73,7 @@ exports.getStudentCourses = async (req, res) => {
         };
       });
 
-    res.json(timetable);
+    res.json(courses);
   } catch (error) {
     console.error("Courses Error:", error.message);
     res.status(500).json({ message: "Server Error" });
@@ -128,7 +130,7 @@ exports.getAttendanceStats = async (req, res) => {
 };
 
 // =========================================================
-// 4. GET MY MARKS (Safe Division Fix)
+// 4. GET MY MARKS
 // =========================================================
 exports.getStudentMarks = async (req, res) => {
   try {
@@ -147,11 +149,13 @@ exports.getStudentMarks = async (req, res) => {
         // ✅ FIX: Prevent Division by Zero
         const percentage = m.maxMarks > 0 
             ? ((m.marksObtained / m.maxMarks) * 100).toFixed(1) 
-            : "N/A"; 
+            : "0"; 
 
         return {
+          _id: m._id,
           exam: m.examType, 
           subject: m.courseOfferingId.courseId.name,
+          code: m.courseOfferingId.courseId.code, // 👈 ADDED: For Results Table
           obtained: m.marksObtained,
           max: m.maxMarks,
           percentage: percentage
@@ -202,7 +206,7 @@ exports.getDashboardAnnouncements = async (req, res) => {
         {
           $or: [
             { expiresAt: { $exists: false } }, 
-            { expiresAt: null },               
+            { expiresAt: null },               
             { expiresAt: { $gt: new Date() } } 
           ]
         }

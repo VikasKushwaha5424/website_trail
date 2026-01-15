@@ -5,23 +5,29 @@ import { BookOpen, UserCheck, AlertCircle } from "lucide-react";
 const ElectiveSelector = () => {
   const [electives, setElectives] = useState([]);
   const [myCourses, setMyCourses] = useState([]);
-  const [semester, setSemester] = useState("FALL2025"); // Hardcoded or fetch active sem
+  // Removed hardcoded semester state
 
   const fetchData = async () => {
     try {
-      const { data } = await api.get(`/electives/list?semesterId=${semester}`);
+      // 1. Call endpoint without parameters
+      // The backend now auto-detects the Active Semester
+      const { data } = await api.get("/electives/list"); 
       setElectives(data.electives);
       setMyCourses(data.myCourseIds);
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error("Failed to fetch electives:", err); 
+    }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+  }, []);
 
   const handleEnroll = async (offeringId) => {
     try {
       await api.post("/electives/enroll", { offeringId });
       alert("Enrolled Successfully!");
-      fetchData(); // Refresh seat counts
+      fetchData(); // Refresh to update seat counts
     } catch (err) {
       alert(err.response?.data?.error || "Failed to enroll");
     }
@@ -33,13 +39,15 @@ const ElectiveSelector = () => {
       await api.post("/electives/drop", { offeringId });
       alert("Dropped Successfully");
       fetchData();
-    } catch (err) { alert("Failed to drop"); }
+    } catch (err) { 
+      alert("Failed to drop"); 
+    }
   };
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-        <BookOpen className="text-indigo-600" /> Elective Registration ({semester})
+      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-gray-800">
+        <BookOpen className="text-indigo-600" /> Elective Registration
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -49,14 +57,23 @@ const ElectiveSelector = () => {
           const percentage = (item.enrolledCount / item.maxSeats) * 100;
 
           return (
-            <div key={item._id} className={`bg-white rounded-xl shadow border-t-4 p-5 flex flex-col justify-between ${isEnrolled ? "border-green-500" : isFull ? "border-red-400 opacity-75" : "border-indigo-500"}`}>
+            <div 
+              key={item._id} 
+              className={`bg-white rounded-xl shadow border-t-4 p-5 flex flex-col justify-between transition hover:shadow-lg ${
+                isEnrolled ? "border-green-500" : isFull ? "border-red-400 opacity-75" : "border-indigo-500"
+              }`}
+            >
               
               <div>
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-bold text-lg">{item.courseId.name}</h3>
-                  <span className="text-xs bg-gray-100 px-2 py-1 rounded">{item.courseId.code}</span>
+                  <h3 className="font-bold text-lg text-gray-800">{item.courseId.name}</h3>
+                  <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono text-gray-600">
+                    {item.courseId.code}
+                  </span>
                 </div>
-                <p className="text-sm text-gray-600 mb-4">Prof. {item.facultyId.lastName}</p>
+                <p className="text-sm text-gray-600 mb-4">
+                  Prof. {item.facultyId.firstName} {item.facultyId.lastName}
+                </p>
                 
                 {/* Seat Progress Bar */}
                 <div className="mb-4">
@@ -79,7 +96,7 @@ const ElectiveSelector = () => {
                 {isEnrolled ? (
                   <button 
                     onClick={() => handleDrop(item._id)}
-                    className="w-full py-2 rounded border border-red-500 text-red-500 font-bold hover:bg-red-50"
+                    className="w-full py-2 rounded border border-red-500 text-red-500 font-bold hover:bg-red-50 transition"
                   >
                     Drop Course
                   </button>
@@ -87,7 +104,7 @@ const ElectiveSelector = () => {
                   <button 
                     onClick={() => handleEnroll(item._id)}
                     disabled={isFull}
-                    className={`w-full py-2 rounded text-white font-bold flex justify-center items-center gap-2 ${
+                    className={`w-full py-2 rounded text-white font-bold flex justify-center items-center gap-2 transition ${
                       isFull ? "bg-gray-400 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700"
                     }`}
                   >
@@ -102,7 +119,9 @@ const ElectiveSelector = () => {
       </div>
       
       {electives.length === 0 && (
-        <div className="text-center py-10 text-gray-500">No elective courses available for registration at this time.</div>
+        <div className="text-center py-10 text-gray-500 italic bg-gray-50 rounded-lg border border-dashed border-gray-300">
+          No elective courses available for registration at this time.
+        </div>
       )}
     </div>
   );

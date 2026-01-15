@@ -1,14 +1,14 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
-// 👇 I have combined all your requested icons here into one import
 import { 
   LayoutDashboard, 
-  MousePointerClick, // Matches your snippet for "Electives"
+  MousePointerClick, 
   FileText,          
-  CreditCard,        // Matches your snippet for "ID Card"
-  Star,              // Matches your snippet for "Rate Faculty"
-  LogOut 
+  CreditCard,        
+  Star,
+  LogOut,
+  CalendarDays // 👈 IMPORTED
 } from "lucide-react";
 
 const StudentLayout = () => {
@@ -20,9 +20,9 @@ const StudentLayout = () => {
     navigate("/login");
   };
 
-  // 👇 Your menu items using those specific icons
   const navItems = [
     { name: "Dashboard", path: "/student", icon: <LayoutDashboard size={20} />, end: true },
+    { name: "My Schedule", path: "/student/schedule", icon: <CalendarDays size={20} /> }, // 👈 ADDED THIS
     { name: "Electives", path: "/student/electives", icon: <MousePointerClick size={20} /> },
     { name: "Rate Faculty", path: "/student/feedback", icon: <Star size={20} /> },
     { name: "Results", path: "/student/results", icon: <FileText size={20} /> },

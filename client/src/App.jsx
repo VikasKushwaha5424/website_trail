@@ -29,12 +29,13 @@ import ElectiveSelector from "./pages/student/ElectiveSelector";
 import IDCardGenerator from "./pages/student/IDCardGenerator";
 import StudentDashboard from "./pages/student/StudentDashboard"; 
 import ViewResults from "./pages/student/ViewResults"; 
+import StudentSchedule from "./pages/student/StudentSchedule"; // 👈 NEW IMPORT
 
 // Import Faculty Pages
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
 import MyCourses from "./pages/faculty/MyCourses";
 import AttendanceEntry from "./pages/faculty/AttendanceEntry";
-import SelectAttendanceCourse from "./pages/faculty/SelectAttendanceCourse"; // 👈 Ensure this file exists!
+import SelectAttendanceCourse from "./pages/faculty/SelectAttendanceCourse"; 
 import MarksEntry from "./pages/faculty/MarksEntry";
 import ApplyLeave from "./pages/faculty/ApplyLeave";
 import MySchedule from "./pages/faculty/MySchedule";
@@ -90,9 +91,7 @@ function App() {
               <Route path="courses" element={<MyCourses />} />
               
               {/* ATTENDANCE ROUTES */}
-              {/* 1. The Selection Screen (Where you pick the class) */}
               <Route path="attendance" element={<SelectAttendanceCourse />} /> 
-              {/* 2. The Actual Entry Screen (Where you click Present/Absent) */}
               <Route path="attendance/:offeringId" element={<AttendanceEntry />} />
               
               <Route path="resources/:offeringId" element={<CourseResources />} />
@@ -110,6 +109,7 @@ function App() {
               <Route index element={<Navigate to="/student/dashboard" replace />} />
               
               <Route path="dashboard" element={<StudentDashboard />} />
+              <Route path="schedule" element={<StudentSchedule />} /> {/* 👈 NEW ROUTE */}
               <Route path="feedback" element={<StudentFeedback />} />
               <Route path="electives" element={<ElectiveSelector />} />
               <Route path="resources/:offeringId" element={<CourseResources />} />

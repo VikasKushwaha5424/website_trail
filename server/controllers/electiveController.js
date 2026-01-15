@@ -1,11 +1,25 @@
 const CourseOffering = require("../models/CourseOffering");
 const Enrollment = require("../models/Enrollment");
 const StudentProfile = require("../models/StudentProfile");
+const Semester = require("../models/Semester"); // 👈 IMPORTED SEMESTER
 
+// =========================================================
 // 1. GET AVAILABLE ELECTIVES
+// =========================================================
 exports.getElectives = async (req, res) => {
   try {
-    const { semesterId } = req.query; // e.g., "FALL2025"
+    let { semesterId } = req.query; 
+
+    // 1️⃣ AUTO-DETECT SEMESTER if missing or undefined
+    if (!semesterId || semesterId === "undefined") {
+        const activeSemester = await Semester.findOne({ isActive: true });
+        
+        // If no active semester exists, return empty lists immediately
+        if (!activeSemester) {
+            return res.json({ electives: [], myCourseIds: [] });
+        }
+        semesterId = activeSemester._id;
+    }
     
     // Find courses marked as Elective for this semester
     const electives = await CourseOffering.find({ 
@@ -17,6 +31,8 @@ exports.getElectives = async (req, res) => {
 
     // Also fetch what the student has ALREADY picked (to disable buttons)
     const student = await StudentProfile.findOne({ userId: req.user.id });
+    if (!student) return res.status(404).json({ error: "Student profile not found" });
+
     const myEnrollments = await Enrollment.find({ 
       studentId: student._id 
     }).select("courseOfferingId");
@@ -29,11 +45,14 @@ exports.getElectives = async (req, res) => {
   }
 };
 
+// =========================================================
 // 2. ENROLL (With Concurrency Check)
+// =========================================================
 exports.enrollElective = async (req, res) => {
   try {
     const { offeringId } = req.body;
     const student = await StudentProfile.findOne({ userId: req.user.id });
+    if (!student) return res.status(404).json({ error: "Student profile not found" });
 
     // A. Check if already enrolled in THIS course
     const existing = await Enrollment.findOne({ studentId: student._id, courseOfferingId: offeringId });
@@ -60,7 +79,8 @@ exports.enrollElective = async (req, res) => {
     await Enrollment.create({
       studentId: student._id,
       courseOfferingId: offeringId,
-      enrollmentDate: new Date()
+      enrollmentDate: new Date(),
+      status: "ENROLLED"
     });
 
     res.json({ message: "Success! Seat reserved.", course });
@@ -70,11 +90,14 @@ exports.enrollElective = async (req, res) => {
   }
 };
 
+// =========================================================
 // 3. DROP ELECTIVE
+// =========================================================
 exports.dropElective = async (req, res) => {
   try {
     const { offeringId } = req.body;
     const student = await StudentProfile.findOne({ userId: req.user.id });
+    if (!student) return res.status(404).json({ error: "Student profile not found" });
 
     // A. Delete Enrollment
     const deleted = await Enrollment.findOneAndDelete({ 
