@@ -34,13 +34,13 @@ import ViewResults from "./pages/student/ViewResults";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
 import MyCourses from "./pages/faculty/MyCourses";
 import AttendanceEntry from "./pages/faculty/AttendanceEntry";
+import SelectAttendanceCourse from "./pages/faculty/SelectAttendanceCourse"; // 👈 Ensure this file exists!
 import MarksEntry from "./pages/faculty/MarksEntry";
 import ApplyLeave from "./pages/faculty/ApplyLeave";
 import MySchedule from "./pages/faculty/MySchedule";
 import MyPerformance from "./pages/faculty/MyPerformance";
 
-
-// ✅ CORRECTED PATH: Since you moved the folder into 'pages', we import from there
+// Shared Pages
 import CourseResources from "./pages/shared/CourseResources"; 
 
 function App() {
@@ -82,12 +82,20 @@ function App() {
           {/* ============================== */}
           <Route element={<ProtectedRoute allowedRoles={['faculty']} />}>
             <Route path="/faculty" element={<FacultyLayout />}>
-              <Route index element={<FacultyDashboard />} />
+              {/* Redirect /faculty to /faculty/dashboard */}
+              <Route index element={<Navigate to="/faculty/dashboard" replace />} />
               
+              <Route path="dashboard" element={<FacultyDashboard />} />
               <Route path="schedule" element={<MySchedule />} />
               <Route path="courses" element={<MyCourses />} />
-              <Route path="resources/:offeringId" element={<CourseResources />} />
+              
+              {/* ATTENDANCE ROUTES */}
+              {/* 1. The Selection Screen (Where you pick the class) */}
+              <Route path="attendance" element={<SelectAttendanceCourse />} /> 
+              {/* 2. The Actual Entry Screen (Where you click Present/Absent) */}
               <Route path="attendance/:offeringId" element={<AttendanceEntry />} />
+              
+              <Route path="resources/:offeringId" element={<CourseResources />} />
               <Route path="marks" element={<MarksEntry />} />
               <Route path="performance" element={<MyPerformance />} />
               <Route path="leave" element={<ApplyLeave />} />
@@ -99,8 +107,9 @@ function App() {
           {/* ============================== */}
           <Route element={<ProtectedRoute allowedRoles={['student']} />}>
             <Route path="/student" element={<StudentLayout />}>
-              <Route index element={<StudentDashboard />} />
+              <Route index element={<Navigate to="/student/dashboard" replace />} />
               
+              <Route path="dashboard" element={<StudentDashboard />} />
               <Route path="feedback" element={<StudentFeedback />} />
               <Route path="electives" element={<ElectiveSelector />} />
               <Route path="resources/:offeringId" element={<CourseResources />} />
@@ -110,7 +119,7 @@ function App() {
           </Route>
 
           {/* 404 Route */}
-          <Route path="*" element={<div>Page Not Found</div>} />
+          <Route path="*" element={<div className="p-10 text-center text-xl">404 - Page Not Found</div>} />
 
         </Routes>
       </Router>
