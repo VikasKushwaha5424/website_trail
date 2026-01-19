@@ -6,6 +6,18 @@ const Semester = require("../models/Semester");
 const FacultyProfile = require("../models/FacultyProfile");
 
 // =========================================================
+// 🕒 HELPER: Convert "HH:mm" String to Minutes (Integer)
+// =========================================================
+const convertToMinutes = (timeStr) => {
+  if (typeof timeStr === 'number') return timeStr;
+  if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(":")) {
+    throw new Error(`Invalid time format '${timeStr}'. Expected HH:mm`);
+  }
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+};
+
+// =========================================================
 // 1. Get My Weekly Schedule (Active Semester Only) - STUDENT
 // =========================================================
 exports.getMyTimetable = async (req, res) => {
@@ -13,15 +25,15 @@ exports.getMyTimetable = async (req, res) => {
     const student = await StudentProfile.findOne({ userId: req.user.id });
     if (!student) return res.status(404).json({ message: "Student profile not found" });
 
-    // ✅ FIX: Get Active Semester
+    // Get Active Semester
     const activeSemester = await Semester.findOne({ isActive: true });
     
-    // If no semester is active (e.g., Summer Break), return empty schedule
+    // If no semester is active, return empty schedule
     if (!activeSemester) {
         return res.json([]); 
     }
 
-    // ✅ FIX: Find enrollments ONLY for the active semester
+    // Find enrollments ONLY for the active semester
     // 1. Find all Course Offerings available in the current semester
     const currentOfferings = await CourseOffering.find({ semesterId: activeSemester._id }).select("_id");
     const currentOfferingIds = currentOfferings.map(o => o._id);
@@ -58,7 +70,15 @@ exports.addSlot = async (req, res) => {
   try {
     const { courseOfferingId, dayOfWeek, startTime, endTime, roomNumber } = req.body;
 
-    // 1. Get the Faculty ID for this class
+    // 👇 CONVERT TIMES BEFORE DOING ANYTHING
+    const startMin = convertToMinutes(startTime);
+    const endMin = convertToMinutes(endTime);
+
+    if (startMin >= endMin) {
+        return res.status(400).json({ error: "Start Time must be before End Time" });
+    }
+
+    // 1. Get the Faculty ID
     const offering = await CourseOffering.findById(courseOfferingId);
     if (!offering) return res.status(404).json({ error: "Course Offering not found" });
 
@@ -70,7 +90,8 @@ exports.addSlot = async (req, res) => {
         roomNumber,
         dayOfWeek,
         $or: [
-            { startTime: { $lt: endTime }, endTime: { $gt: startTime } } // Overlap logic
+            // Use the converted MINUTES for comparison
+            { startTime: { $lt: endMin }, endTime: { $gt: startMin } } 
         ]
     });
     
@@ -78,7 +99,7 @@ exports.addSlot = async (req, res) => {
         return res.status(400).json({ error: `Room ${roomNumber} is already booked on ${dayOfWeek} during this time.` });
     }
 
-    // 3. ✅ CHECK 2: Faculty Conflict (Is the Teacher busy?)
+    // 3. CHECK 2: Faculty Conflict (Is the Teacher busy?)
     // Find ALL classes taught by this faculty to check their schedule
     const facultyOfferings = await CourseOffering.find({ facultyId }).select("_id");
     const facultyOfferingIds = facultyOfferings.map(o => o._id);
@@ -87,7 +108,7 @@ exports.addSlot = async (req, res) => {
         courseOfferingId: { $in: facultyOfferingIds }, // Look at any class this teacher has
         dayOfWeek,
         $or: [
-            { startTime: { $lt: endTime }, endTime: { $gt: startTime } }
+            { startTime: { $lt: endMin }, endTime: { $gt: startMin } }
         ]
     });
 
@@ -95,8 +116,15 @@ exports.addSlot = async (req, res) => {
         return res.status(400).json({ error: "This Faculty is already teaching another class at this time!" });
     }
 
-    // 4. Create Slot (No conflicts found)
-    const newSlot = await Timetable.create(req.body);
+    // 4. Create Slot (Save as Numbers)
+    const newSlot = await Timetable.create({
+        courseOfferingId,
+        dayOfWeek,
+        startTime: startMin, // Save 540
+        endTime: endMin,     // Save 600
+        roomNumber
+    });
+
     res.status(201).json(newSlot);
 
   } catch (err) {
@@ -179,9 +207,6 @@ exports.getFacultyTimetable = async (req, res) => {
     const courseIds = myCourses.map(c => c._id);
 
     // 3. Find Timetable entries for these courses
-    // Note: 'roomId' is just a String in your AddSlot function (roomNumber), not a Ref. 
-    // If you changed it to a Ref, keep populate. If it's just a string, remove populate("roomId").
-    // Based on addSlot above, it looks like 'roomNumber' is stored directly. 
     const schedule = await Timetable.find({ courseOfferingId: { $in: courseIds } })
       .populate({
         path: "courseOfferingId",

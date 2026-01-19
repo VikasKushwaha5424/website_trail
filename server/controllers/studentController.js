@@ -47,7 +47,7 @@ exports.getStudentCourses = async (req, res) => {
         match: { semesterId: activeSemester._id }, // 👈 ONLY fetch current semester offerings
         populate: [
           { path: "courseId", select: "name code credits" }, 
-          // Assuming FacultyProfile has firstName/lastName. Adjust if it uses userId for name.
+          // Assuming FacultyProfile has firstName/lastName.
           { path: "facultyId", select: "firstName lastName" } 
         ]
       });
@@ -62,7 +62,7 @@ exports.getStudentCourses = async (req, res) => {
           : "TBD";
 
         return {
-          _id: offering._id, // 👈 ADDED: Needed for Feedback Form
+          _id: offering._id, // Needed for Feedback Form
           courseName: offering.courseId.name,
           courseCode: offering.courseId.code,
           credits: offering.courseId.credits,
@@ -155,7 +155,7 @@ exports.getStudentMarks = async (req, res) => {
           _id: m._id,
           exam: m.examType, 
           subject: m.courseOfferingId.courseId.name,
-          code: m.courseOfferingId.courseId.code, // 👈 ADDED: For Results Table
+          code: m.courseOfferingId.courseId.code, // For Results Table
           obtained: m.marksObtained,
           max: m.maxMarks,
           percentage: percentage
@@ -238,10 +238,12 @@ exports.getIDCardDetails = async (req, res) => {
 
     if (!student) return res.status(404).json({ error: "Student not found" });
 
-    // Calculate Validity (e.g., 4 years from admission or current date)
-    const issueDate = new Date();
-    const validUpto = new Date(issueDate);
-    validUpto.setFullYear(validUpto.getFullYear() + 4); 
+    // 🚨 FIX: Calculate Validity based on Batch Year (e.g., Batch + 4 years)
+    // If batchYear is 2026, valid until May 2030.
+    const validUpto = new Date();
+    validUpto.setFullYear(student.batchYear + 4); 
+    validUpto.setMonth(4); // May (Month is 0-indexed, 4 = May)
+    validUpto.setDate(30); 
 
     const idData = {
       name: `${student.firstName} ${student.lastName}`,

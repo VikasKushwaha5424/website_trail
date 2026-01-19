@@ -1,5 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
+const path = require("path"); // 👈 1. Added Import for Path Resolution
+
 // 1. Load Env Vars FIRST (Before routes/db)
 dotenv.config();
 
@@ -26,7 +28,7 @@ const marksRoute = require("./routes/marksRoutes");
 const feedbackRoute = require("./routes/feedbackRoutes");
 const leaveRoute = require("./routes/leaveRoutes");
 const electiveRoute = require("./routes/electiveRoutes"); 
-const resourceRoute = require("./routes/resourceRoutes"); // 👈 1. Added Import
+const resourceRoute = require("./routes/resourceRoutes"); 
 
 // 3. Connect to Database
 connectDB();
@@ -47,18 +49,24 @@ require("./models/Hostel");
 require("./models/ExamSchedule"); 
 require("./models/Feedback"); 
 require("./models/Leave");
-require("./models/Resource"); // 👈 2. Added Model Registration
+require("./models/Resource"); 
 
 // 5. Initialize Express
 const app = express();
 
 // ==========================================
-// 🛡️ SECURITY LAYER
+// 🛡️ SECURITY LAYER & CONFIG
 // ==========================================
 
 app.use(helmet());
-app.use(express.json({ limit: "10kb" })); 
+
+// 🚨 FIX: Increased payload limit to 10MB for images/notices
+app.use(express.json({ limit: "10mb" })); 
 app.use(cors()); 
+
+// 🚨 FIX: Serve Static Files (Make 'uploads' folder public)
+// This makes http://localhost:5000/uploads/image.jpg accessible
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
@@ -111,7 +119,7 @@ app.use("/api/marks", marksRoute);
 app.use("/api/feedback", feedbackRoute);
 app.use("/api/leaves", leaveRoute);
 app.use("/api/electives", electiveRoute); 
-app.use("/api/resources", resourceRoute); // 👈 3. Added Route Mount
+app.use("/api/resources", resourceRoute); 
 
 // 8. Basic Test Route
 app.get("/", (req, res) => {

@@ -1,7 +1,7 @@
 const CourseOffering = require("../models/CourseOffering");
 const Enrollment = require("../models/Enrollment");
 const StudentProfile = require("../models/StudentProfile");
-const Semester = require("../models/Semester"); // 👈 IMPORTED SEMESTER
+const Semester = require("../models/Semester"); 
 
 // =========================================================
 // 1. GET AVAILABLE ELECTIVES
@@ -24,8 +24,8 @@ exports.getElectives = async (req, res) => {
     // Find courses marked as Elective for this semester
     const electives = await CourseOffering.find({ 
       semesterId, 
-      isElective: true,
-      isOpen: true 
+      isElective: true
+      // You can add isOpen: true here if you want to hide closed courses completely
     }).populate("courseId", "name code credits description")
       .populate("facultyId", "firstName lastName");
 
@@ -46,7 +46,7 @@ exports.getElectives = async (req, res) => {
 };
 
 // =========================================================
-// 2. ENROLL (With Concurrency Check)
+// 2. ENROLL (Atomic: Prevents Race Conditions)
 // =========================================================
 exports.enrollElective = async (req, res) => {
   try {
@@ -58,21 +58,20 @@ exports.enrollElective = async (req, res) => {
     const existing = await Enrollment.findOne({ studentId: student._id, courseOfferingId: offeringId });
     if (existing) return res.status(400).json({ error: "Already enrolled." });
 
-    // B. ATOMIC UPDATE (The Magic Line 🪄)
-    // We try to increment count ONLY IF count is currently less than maxSeats
-    // and if the course is open.
+    // B. ATOMIC UPDATE (The Gatekeeper 🛡️)
+    // We try to increment count ONLY IF count is currently less than capacity.
+    // Uses 'currentEnrollment' and 'capacity' to match your Admin Controller logic.
     const course = await CourseOffering.findOneAndUpdate(
       { 
         _id: offeringId, 
-        isOpen: true,
-        $expr: { $lt: ["$enrolledCount", "$maxSeats"] } // Validates seat limit in DB layer
+        $expr: { $lt: ["$currentEnrollment", "$capacity"] } // 👈 Validates seat limit in DB layer
       },
-      { $inc: { enrolledCount: 1 } }, // Atomic Increment
+      { $inc: { currentEnrollment: 1 } }, // Atomic Increment
       { new: true }
     );
 
     if (!course) {
-      return res.status(400).json({ error: "Enrollment Failed: Class is Full or Closed." });
+      return res.status(400).json({ error: "Enrollment Failed: Class is Full." });
     }
 
     // C. Create Enrollment Record
@@ -107,8 +106,8 @@ exports.dropElective = async (req, res) => {
 
     if (!deleted) return res.status(400).json({ error: "Not enrolled in this course." });
 
-    // B. Decrement Seat Count
-    await CourseOffering.findByIdAndUpdate(offeringId, { $inc: { enrolledCount: -1 } });
+    // B. Decrement Seat Count (Fix: using currentEnrollment)
+    await CourseOffering.findByIdAndUpdate(offeringId, { $inc: { currentEnrollment: -1 } });
 
     res.json({ message: "Course dropped successfully." });
   } catch (err) {

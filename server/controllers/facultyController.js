@@ -51,7 +51,6 @@ exports.getStudentsForCourse = async (req, res) => {
     }
     
     // 2. 🛡️ SECURITY CHECK: Verify this faculty OWNS this course offering
-    // (This prevents Faculty A from peeking at Faculty B's student list)
     const offering = await CourseOffering.findOne({ 
         _id: offeringId, 
         facultyId: facultyProfile._id 
@@ -74,7 +73,7 @@ exports.getStudentsForCourse = async (req, res) => {
         _id: e.studentId._id, // StudentProfile ID
         name: e.studentId.userId.name,
         rollNumber: e.studentId.rollNumber,
-        email: e.studentId.userId.email, // 👈 ADDED: Required for "Contact Class" feature
+        email: e.studentId.userId.email, 
         status: "PRESENT" // Default status for UI
       }));
 
@@ -86,7 +85,7 @@ exports.getStudentsForCourse = async (req, res) => {
 };
 
 // =========================================================
-// 3. Mark Attendance (SECURED + NORMALIZED DATE)
+// 3. Mark Attendance (SECURED + OPTIMIZED BULK WRITE)
 // =========================================================
 exports.markAttendance = async (req, res) => {
   try {
@@ -110,25 +109,32 @@ exports.markAttendance = async (req, res) => {
     }
 
     // 3. Force date to midnight UTC (Fixes Timezone duplication bugs)
-    // This ensures "9:00 AM" and "10:00 AM" are treated as the same "Day"
     const cleanDate = new Date(date);
     cleanDate.setUTCHours(0, 0, 0, 0); 
     
-    // 4. Save Attendance
-    await Promise.all(students.map(async (record) => {
-      return Attendance.findOneAndUpdate(
-        { 
+    // 4. OPTIMIZATION: Prepare Bulk Operations
+    // This executes ONE big database query instead of looping through students individually
+    const bulkOps = students.map((record) => ({
+      updateOne: {
+        filter: { 
           studentId: record.studentId, 
           courseOfferingId: offeringId, 
           date: cleanDate 
-        }, 
-        { 
-          status: record.status,
-          markedBy: userId // Audit: Track who marked it
-        }, 
-        { upsert: true, new: true } 
-      );
+        },
+        update: { 
+          $set: { 
+            status: record.status, 
+            markedBy: userId 
+          } 
+        },
+        upsert: true 
+      }
     }));
+
+    // Execute all updates in ONE command
+    if (bulkOps.length > 0) {
+        await Attendance.bulkWrite(bulkOps);
+    }
 
     res.json({ message: "Attendance Marked Successfully!" });
   } catch (err) {
@@ -184,14 +190,14 @@ exports.updateMarks = async (req, res) => {
 };
 
 // =========================================================
-// 5. POST CLASS ANNOUNCEMENT (NEW)
+// 5. POST CLASS ANNOUNCEMENT
 // =========================================================
 exports.postClassAnnouncement = async (req, res) => {
   try {
     const { courseOfferingId, title, message, isImportant } = req.body;
     const userId = req.user.id; 
 
-    // Optional: Security Check to ensure faculty owns this course
+    // Security Check to ensure faculty owns this course
     const facultyProfile = await FacultyProfile.findOne({ userId });
     const isOwner = await CourseOffering.exists({ 
         _id: courseOfferingId, 
@@ -202,13 +208,12 @@ exports.postClassAnnouncement = async (req, res) => {
         return res.status(403).json({ error: "You are not authorized to post notices for this course." });
     }
 
-    // Create the notice linked to the Course and the User
     const notice = await Announcement.create({
       title,
       message,
-      targetAudience: "STUDENT", // Matches your Enum
-      courseOfferingId,          // The Critical Link
-      createdBy: userId,         // Matches your Schema
+      targetAudience: "STUDENT", 
+      courseOfferingId,          
+      createdBy: userId,         
       isImportant: isImportant || false
     });
 

@@ -31,11 +31,19 @@ exports.payFee = async (req, res) => {
   try {
     const { feeId, amount, method, transactionId } = req.body;
 
-    // 2. Validation
+    // 2. Validation: Amount
     if (amount <= 0) {
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: "Invalid payment amount" });
+    }
+
+    // 🚨 NEW CHECK: Prevent Duplicate/Replay Payments
+    const existingTxn = await Payment.findOne({ transactionId }).session(session);
+    if (existingTxn) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(409).json({ error: "Transaction ID already used. Payment processed previously." });
     }
     
     // 3. Find the Bill (Pass session)

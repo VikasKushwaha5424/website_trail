@@ -22,11 +22,18 @@ exports.getClassList = async (req, res) => {
 };
 
 // =========================================================
-// 2. FACULTY: ENTER / UPDATE MARKS
+// 2. FACULTY: ENTER / UPDATE MARKS (FIXED VALIDATION)
 // =========================================================
 exports.updateMarks = async (req, res) => {
   try {
     const { studentId, courseOfferingId, examType, marksObtained, maxMarks } = req.body;
+
+    // 👇 VALIDATION: Check if Marks Obtained > Max Marks
+    if (Number(marksObtained) > Number(maxMarks)) {
+        return res.status(400).json({ 
+            error: `Marks Obtained (${marksObtained}) cannot be greater than Max Marks (${maxMarks})` 
+        });
+    }
 
     // 1. Check if Locked (Published)
     const existingMark = await Marks.findOne({ studentId, courseOfferingId, examType });
@@ -90,7 +97,6 @@ exports.getStudentResults = async (req, res) => {
   try {
     const { semesterId } = req.query;
     // We need the Profile ID, not the User ID from the token
-    // Assuming middleware puts user in req.user, let's find the profile
     const studentProfile = await StudentProfile.findOne({ userId: req.user.id });
     if (!studentProfile) return res.status(404).json({ error: "Student Profile not found" });
 
