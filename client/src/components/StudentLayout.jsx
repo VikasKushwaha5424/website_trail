@@ -12,7 +12,8 @@ import {
   User,
   BookOpen,
   Banknote,
-  Settings // 👈 IMPORTED
+  Settings, // 👈 IMPORTED
+  Bell
 } from "lucide-react";
 
 const StudentLayout = () => {

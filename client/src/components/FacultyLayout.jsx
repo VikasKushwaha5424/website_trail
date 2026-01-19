@@ -10,7 +10,8 @@ import {
   LogOut,
   CalendarDays,
   Star,
-  Settings // 👈 IMPORTED
+  Settings, // 👈 IMPORTED
+  Bell
 } from "lucide-react";
 
 const FacultyLayout = () => {
