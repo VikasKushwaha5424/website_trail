@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
-const FacultyProfile = require("../models/FacultyProfile"); // ✅ Added Import
+const FacultyProfile = require("../models/FacultyProfile"); 
+const Announcement = require("../models/Announcement"); // 👈 ADDED IMPORT
 const { protect } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 
@@ -10,7 +11,7 @@ const upload = require("../middleware/uploadMiddleware");
 // =========================================================
 router.get("/faculty-list", protect, async (req, res) => {
   try {
-    // ✅ FIX: Query FacultyProfile to get Department & Qualifications
+    // Query FacultyProfile to get Department & Qualifications
     const facultyList = await FacultyProfile.find()
       .populate("userId", "name email profilePicture") // Get Name/Email/Photo from User
       .populate("departmentId", "name code");          // Get Department Name
@@ -58,6 +59,26 @@ router.post("/upload-photo", protect, upload.single("photo"), async (req, res) =
   } catch (err) {
     console.error("Upload Error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// =========================================================
+// 3. GET MY NOTICES (The Missing Link!) 👈 NEW
+// =========================================================
+// Endpoint: /api/users/announcements/my-notices
+router.get("/announcements/my-notices", protect, async (req, res) => {
+  try {
+    const role = req.user.role; // e.g., "STUDENT", "FACULTY"
+    
+    // Fetch notices that are for "ALL" OR specifically for my "ROLE"
+    const notices = await Announcement.find({
+        targetAudience: { $in: ["ALL", role] }
+    }).sort({ date: -1 }); // Newest first
+
+    res.json(notices);
+  } catch (err) {
+    console.error("Fetch Notices Error:", err);
+    res.status(500).json({ error: "Failed to fetch notices" });
   }
 });
 

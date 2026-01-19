@@ -35,6 +35,7 @@ const StudentLayout = () => {
     { name: "ID Card", path: "/student/id-card", icon: <CreditCard size={20} /> },
     { name: "Profile", path: "/student/profile", icon: <User size={20} /> },
     { name: "Settings", path: "/student/settings", icon: <Settings size={20} /> }, // 👈 ADDED SETTINGS LINK
+    { icon: <Bell size={20} />, name: 'Notices', path: '/student/notices' }, // 👈 ADD THIS
   ];
 
   return (

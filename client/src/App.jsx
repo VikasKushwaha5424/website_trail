@@ -46,7 +46,8 @@ import MyPerformance from "./pages/faculty/MyPerformance";
 
 // Shared Pages
 import CourseResources from "./pages/shared/CourseResources"; 
-import SettingsPage from "./pages/shared/SettingsPage"; // 👈 NEW IMPORT
+import SettingsPage from "./pages/shared/SettingsPage";
+import NoticeBoard from "./pages/shared/NoticeBoard"; // 👈 NEW IMPORT
 
 function App() {
   return (
@@ -80,7 +81,7 @@ function App() {
               <Route path="feedback" element={<FeedbackStats />} />
               <Route path="leaves" element={<LeaveManager />} />
               
-              <Route path="settings" element={<SettingsPage />} /> {/* 👈 Admin Settings */}
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>
 
@@ -95,6 +96,7 @@ function App() {
               <Route path="dashboard" element={<FacultyDashboard />} />
               <Route path="schedule" element={<MySchedule />} />
               <Route path="courses" element={<MyCourses />} />
+              <Route path="notices" element={<NoticeBoard />} /> {/* 👈 ADDED NOTICE BOARD */}
               
               {/* ATTENDANCE ROUTES */}
               <Route path="attendance" element={<SelectAttendanceCourse />} /> 
@@ -105,7 +107,7 @@ function App() {
               <Route path="performance" element={<MyPerformance />} />
               <Route path="leave" element={<ApplyLeave />} />
               
-              <Route path="settings" element={<SettingsPage />} /> {/* 👈 Faculty Settings */}
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>
 
@@ -117,6 +119,7 @@ function App() {
               <Route index element={<Navigate to="/student/dashboard" replace />} />
               
               <Route path="dashboard" element={<StudentDashboard />} />
+              <Route path="notices" element={<NoticeBoard />} /> {/* 👈 ADDED NOTICE BOARD */}
               <Route path="courses" element={<StudentCourses />} />
               <Route path="fees" element={<StudentFees />} />
               <Route path="schedule" element={<StudentSchedule />} />
@@ -127,7 +130,7 @@ function App() {
               <Route path="results" element={<ViewResults />} />
               <Route path="profile" element={<StudentProfile />} />
               
-              <Route path="settings" element={<SettingsPage />} /> {/* 👈 Student Settings */}
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>
 

@@ -31,6 +31,7 @@ const FacultyLayout = () => {
     { name: "My Performance", path: "/faculty/performance", icon: <Star size={20} /> },
     { name: "Apply Leave", path: "/faculty/leave", icon: <Briefcase size={20} /> },
     { name: "Settings", path: "/faculty/settings", icon: <Settings size={20} /> }, // 👈 ADDED SETTINGS LINK
+    { name: "Notices", path: "/faculty/notices",icon: <Bell size={20} /> }, // 👈 ADD THIS
   ];
 
   return (

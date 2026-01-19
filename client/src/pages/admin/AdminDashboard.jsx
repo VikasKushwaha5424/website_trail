@@ -1,184 +1,213 @@
-import { useEffect, useState, useContext, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../../context/AuthContext';
-import api from '../../utils/api';
-import { 
-  Users, 
-  GraduationCap, 
-  BookOpen, 
-  Calendar, 
-  Megaphone, 
-  CreditCard, 
-  RefreshCw 
-} from 'lucide-react';
+import { useState, useEffect } from "react";
+import { fetchUsersList, deleteUser, addUser, updateUser } from "../../services/adminService";
+import { Edit, Trash, Plus, Search } from "lucide-react"; 
+import { ROLES } from "../../constants/roles";
 
-const AdminDashboard = () => {
-  const { user } = useContext(AuthContext);
-  const navigate = useNavigate();
-  
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalFaculty: 0,
-    totalCourses: 0,
-    activeSemester: null
+const UserManagement = () => {
+  const [users, setUsers] = useState([]);
+  const [roleFilter, setRoleFilter] = useState(ROLES.STUDENT);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(""); 
+
+  const [formData, setFormData] = useState({
+    name: "", email: "", password: "", 
+    role: ROLES.STUDENT, 
+    rollNumber: "", batchYear: "", 
+    designation: "", qualification: "", departmentId: "" 
   });
-  
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
 
-  // 1. Define Fetch Logic (Wrapped in useCallback for dependency stability)
-  const fetchStats = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    
+  const loadUsers = async () => {
     try {
-      const { data } = await api.get('/admin/stats');
+      const data = await fetchUsersList(roleFilter, page, 10, searchTerm);
       if (data.success) {
-        setStats(data.stats);
+        setUsers(data.data);
+        setTotalPages(data.pagination.pages);
       }
-      setError(null);
-    } catch (err) {
-      console.error("Failed to load dashboard stats", err);
-      // Only set error on initial load, not during background refreshes
-      if (!isRefresh) setError("Failed to load dashboard data.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    } catch (message) {
+      console.error(message);
     }
-  }, []);
+  };
 
-  // 2. Lifecycle: Initial Fetch + Auto-Polling
   useEffect(() => {
-    fetchStats(); // Initial load
+    const timer = setTimeout(() => { loadUsers(); }, 500);
+    return () => clearTimeout(timer);
+  }, [roleFilter, page, searchTerm]);
 
-    // Poll every 30 seconds to keep data fresh
-    const interval = setInterval(() => {
-      fetchStats(true); // Background refresh
-    }, 30000);
+  const handleDelete = async (userId) => {
+    if (!window.confirm("Are you sure? This will delete all related data.")) return;
+    try {
+      await deleteUser(userId);
+      setUsers(prevUsers => prevUsers.filter(user => user._id !== userId));
+    } catch (message) {
+      alert(message);
+    }
+  };
 
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, [fetchStats]);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (isEditing) {
+        const response = await updateUser({ ...formData, userId: formData._id });
+        setUsers(prevUsers => prevUsers.map(u => u._id === response.user._id ? response.user : u));
+      } else {
+        const response = await addUser(formData);
+        setUsers(prevUsers => [response.user, ...prevUsers]);
+      }
+      setShowModal(false);
+    } catch (message) {
+      alert(message);
+    }
+  };
 
-  if (loading) return <div className="p-10 text-center">Loading Dashboard...</div>;
-  if (error) return <div className="p-10 text-center text-red-500">{error}</div>;
+  const openAddModal = () => {
+    setIsEditing(false);
+    setFormData({ 
+      name: "", email: "", password: "", 
+      role: roleFilter, 
+      rollNumber: "", batchYear: "", 
+      designation: "", qualification: "", departmentId: "" 
+    });
+    setShowModal(true);
+  };
+
+  const openEditModal = (user) => {
+    setIsEditing(true);
+    setFormData({ ...user, password: "" });
+    setShowModal(true);
+  };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
-      
-      {/* 3. Welcome Section */}
-      <div className="flex justify-between items-center bg-blue-600 text-white p-6 rounded-lg shadow-md">
-        <div>
-          <h1 className="text-3xl font-bold">Welcome back, {user?.name}!</h1>
-          <p className="mt-2 opacity-90">Here is what's happening in your institute today.</p>
-        </div>
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h2 className="text-2xl font-bold">User Management</h2>
         
-        <div className="text-right flex flex-col items-end gap-2">
-          <p className="text-sm uppercase tracking-wider opacity-75 hidden md:block">Administrator</p>
-          
-          {/* Manual Refresh Button */}
-          <button 
-            onClick={() => fetchStats(true)} 
-            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm transition-all border border-white/30"
-            disabled={refreshing}
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Updating..." : "Refresh Data"}
+        <div className="flex gap-3 w-full md:w-auto">
+          <div className="relative flex-grow md:flex-grow-0">
+            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search by name or email..." 
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+              className="pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+            />
+          </div>
+
+          <button onClick={openAddModal} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 whitespace-nowrap">
+            <Plus size={18} /> Add User
           </button>
         </div>
       </div>
 
-      {/* 4. Stats Widgets Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard 
-          title="Total Students" 
-          count={stats.totalStudents} 
-          icon={<Users className="w-8 h-8 text-blue-600" />} 
-          bgColor="bg-blue-50" 
-        />
-        <StatCard 
-          title="Total Faculty" 
-          count={stats.totalFaculty} 
-          icon={<GraduationCap className="w-8 h-8 text-green-600" />} 
-          bgColor="bg-green-50" 
-        />
-        <StatCard 
-          title="Total Courses" 
-          count={stats.totalCourses} 
-          icon={<BookOpen className="w-8 h-8 text-purple-600" />} 
-          bgColor="bg-purple-50" 
-        />
+      <div className="flex gap-4 mb-4 border-b overflow-x-auto">
+        {[ROLES.STUDENT, ROLES.FACULTY].map((role) => (
+          <button 
+            key={role}
+            onClick={() => { setRoleFilter(role); setPage(1); setSearchTerm(""); }}
+            className={`px-4 py-2 capitalize whitespace-nowrap ${roleFilter === role ? "border-b-2 border-blue-600 text-blue-600 font-bold" : "text-gray-500"}`}
+          >
+            {role}s
+          </button>
+        ))}
+      </div>
 
-        <div className="bg-orange-50 p-6 rounded-xl shadow-sm border border-orange-100 flex items-center justify-between">
-          <div>
-            <p className="text-gray-500 text-sm font-medium uppercase">Active Semester</p>
-            <h3 className="text-xl font-bold text-gray-800 mt-1">
-              {stats.activeSemester ? stats.activeSemester.name : "None Active"}
-            </h3>
-            {stats.activeSemester && (
-              <span className="text-xs text-orange-600 font-semibold bg-orange-200 px-2 py-1 rounded mt-2 inline-block">
-                {stats.activeSemester.code}
-              </span>
+      <div className="bg-white rounded shadow overflow-x-auto">
+        <table className="w-full text-left min-w-[600px]">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="p-4">Name</th>
+              <th className="p-4">Email</th>
+              <th className="p-4">Role</th>
+              <th className="p-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.length > 0 ? (
+              users.map((user) => (
+                <tr key={user._id} className="border-b hover:bg-gray-50">
+                  <td className="p-4">{user.name}</td>
+                  <td className="p-4">{user.email}</td>
+                  <td className="p-4 uppercase text-xs font-bold text-gray-500">{user.role}</td>
+                  <td className="p-4 flex gap-2">
+                    <button onClick={() => openEditModal(user)} className="text-blue-500 hover:bg-blue-50 p-2 rounded"><Edit size={16}/></button>
+                    <button onClick={() => handleDelete(user._id)} className="text-red-500 hover:bg-red-50 p-2 rounded"><Trash size={16}/></button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="p-8 text-center text-gray-500">
+                  {searchTerm ? "No users found matching your search." : "No users found."}
+                </td>
+              </tr>
             )}
-          </div>
-          <div className="p-3 bg-white rounded-full shadow-sm">
-            <Calendar className="w-8 h-8 text-orange-600" />
-          </div>
-        </div>
+          </tbody>
+        </table>
       </div>
 
-      {/* 5. Quick Actions Section */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <ActionButton 
-            onClick={() => navigate('/admin/notices')} 
-            icon={<Megaphone className="w-6 h-6 text-indigo-600 group-hover:text-white" />} 
-            color="indigo" 
-            title="Broadcast Notice" 
-            desc="Send alerts to everyone" 
-          />
-          <ActionButton 
-            onClick={() => navigate('/admin/fees')} 
-            icon={<CreditCard className="w-6 h-6 text-emerald-600 group-hover:text-white" />} 
-            color="emerald" 
-            title="Verify Payments" 
-            desc="Approve fee transactions" 
-          />
-          <ActionButton 
-            onClick={() => navigate('/admin/users')} 
-            icon={<Users className="w-6 h-6 text-gray-700 group-hover:text-white" />} 
-            color="gray" 
-            title="Manage Users" 
-            desc="Add or remove accounts" 
-          />
-        </div>
+      <div className="mt-4 flex justify-between items-center">
+        <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 transition">Prev</button>
+        <span className="text-gray-700">Page {page} of {totalPages}</span>
+        <button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 transition">Next</button>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <form onSubmit={handleSubmit} className="bg-white p-6 rounded w-full max-w-md max-h-[90vh] overflow-y-auto shadow-xl">
+            <h3 className="text-xl font-bold mb-4">{isEditing ? "Edit" : "Add"} {roleFilter}</h3>
+            
+            <div className="space-y-3">
+              <input className="w-full border p-2 rounded" placeholder="Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+              <input className="w-full border p-2 rounded" placeholder="Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+              {!isEditing && <input className="w-full border p-2 rounded" type="password" placeholder="Password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />}
+              
+              {roleFilter === ROLES.STUDENT && (
+                <>
+                  <input className="w-full border p-2 rounded" placeholder="Roll Number" value={formData.rollNumber} onChange={e => setFormData({...formData, rollNumber: e.target.value})} />
+                  <input className="w-full border p-2 rounded" placeholder="Batch Year (e.g. 2024)" value={formData.batchYear} onChange={e => setFormData({...formData, batchYear: e.target.value})} />
+                </>
+              )}
+              
+              {/* FACULTY SECTION FIX */}
+              {roleFilter === ROLES.FACULTY && (
+                <>
+                  <input 
+                    className="w-full border p-2 rounded" 
+                    placeholder="Designation (e.g. Assistant Professor)" 
+                    value={formData.designation} 
+                    onChange={e => setFormData({...formData, designation: e.target.value})} 
+                  />
+                  {/* Qualification is now REQUIRED */}
+                  <input 
+                    className="w-full border p-2 rounded" 
+                    placeholder="Qualification (e.g. Ph.D, M.Tech)" 
+                    value={formData.qualification} 
+                    onChange={e => setFormData({...formData, qualification: e.target.value})} 
+                    required 
+                  />
+                  {/* Department is now REQUIRED */}
+                  <input 
+                    className="w-full border p-2 rounded" 
+                    placeholder="Department ID (or Code)" 
+                    value={formData.departmentId} 
+                    onChange={e => setFormData({...formData, departmentId: e.target.value})} 
+                    required 
+                  />
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };
-
-// --- Helper Components ---
-
-const StatCard = ({ title, count, icon, bgColor }) => (
-  <div className={`${bgColor} p-6 rounded-xl shadow-sm border border-opacity-50 border-gray-200 flex items-center justify-between`}>
-    <div>
-      <p className="text-gray-500 text-sm font-medium uppercase">{title}</p>
-      <h3 className="text-3xl font-bold text-gray-800 mt-1">{count}</h3>
-    </div>
-    <div className="p-3 bg-white rounded-full shadow-sm">{icon}</div>
-  </div>
-);
-
-const ActionButton = ({ onClick, icon, color, title, desc }) => (
-  <button onClick={onClick} className="flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-shadow group text-left w-full">
-    <div className={`p-3 bg-${color}-100 rounded-full group-hover:bg-${color}-600 transition-colors`}>
-      {icon}
-    </div>
-    <div>
-      <h3 className="font-semibold text-gray-800">{title}</h3>
-      <p className="text-sm text-gray-500">{desc}</p>
-    </div>
-  </button>
-);
-
-export default AdminDashboard;
+export default UserManagement;

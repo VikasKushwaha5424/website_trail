@@ -1,4 +1,4 @@
-const mongoose = require("mongoose"); // Required for Transactions
+const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const StudentProfile = require("../models/StudentProfile"); 
@@ -15,16 +15,17 @@ const Timetable = require("../models/Timetable");
 const Classroom = require("../models/Classroom");
 const ExamSchedule = require("../models/ExamSchedule"); 
 const Attendance = require("../models/Attendance");
+const Marks = require("../models/Marks");        // <--- ADDED IMPORT
+const Feedback = require("../models/Feedback");  // <--- ADDED IMPORT
 
-// 🔑 IMPORT CONSTANTS (Magic Strings Fix)
+// 🔑 IMPORT CONSTANTS
 const { ROLES } = require("../config/roles");
 
 // =========================================================
 // 🕒 HELPER: Convert "HH:mm" String to Minutes (Integer)
-// This ensures 9:00 AM (540) is mathematically less than 10:00 AM (600)
 // =========================================================
 const convertToMinutes = (timeStr) => {
-  if (typeof timeStr === 'number') return timeStr; // Already a number? Return it.
+  if (typeof timeStr === 'number') return timeStr;
   if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(":")) {
     throw new Error(`Invalid time format '${timeStr}'. Expected HH:mm`);
   }
@@ -36,7 +37,7 @@ const convertToMinutes = (timeStr) => {
 // 1. ADD USER (Robust: Handles Student/Faculty + Rollback)
 // =========================================================
 exports.addUser = async (req, res) => {
-  let user = null; // Declare outside 'try' for rollback scope
+  let user = null; 
 
   try {
     const { 
@@ -46,35 +47,21 @@ exports.addUser = async (req, res) => {
     
     let { departmentId } = req.body;
 
-    // ---------------------------------------------------------
-    // 1. DEPARTMENT VALIDATION & RESOLUTION
-    // ---------------------------------------------------------
-
-    // A. Immediate Check: Faculty MUST have a department
-    // ✅ FIX: Use ROLES constant
+    // 1. DEPARTMENT VALIDATION
     if (role === ROLES.FACULTY && !departmentId) {
         return res.status(400).json({ message: "Department ID is required for Faculty accounts." });
     }
 
-    // B. Resolve & Verify Department (if provided)
     if (departmentId) {
-        // Case 1: Input looks like a MongoDB ID -> Verify it exists
         if (departmentId.match(/^[0-9a-fA-F]{24}$/)) {
             const deptExists = await Department.findById(departmentId);
-            if (!deptExists) {
-                return res.status(400).json({ error: `Department not found with ID: ${departmentId}` });
-            }
-        } 
-        // Case 2: Input is likely a Code (e.g. "CSE") -> Resolve to ID
-        else {
+            if (!deptExists) return res.status(400).json({ error: `Department not found with ID: ${departmentId}` });
+        } else {
             const dept = await Department.findOne({ code: departmentId }); 
-            if (!dept) {
-                return res.status(400).json({ error: `Invalid Department Code: ${departmentId}` });
-            }
-            departmentId = dept._id; // Replace string code with actual ObjectId
+            if (!dept) return res.status(400).json({ error: `Invalid Department Code: ${departmentId}` });
+            departmentId = dept._id; 
         }
     }
-    // ---------------------------------------------------------
 
     // 2. Check if user exists
     let userExists = await User.findOne({ email });
@@ -84,7 +71,7 @@ exports.addUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 4. Create Base User (Point of No Return)
+    // 4. Create Base User
     user = await User.create({
       name, 
       email, 
@@ -95,9 +82,7 @@ exports.addUser = async (req, res) => {
     });
 
     // 5. Create Specific Profile based on Role
-    // ⚠️ CRITICAL: If this fails, we catch it and delete the 'user'
     try {
-      // ✅ FIX: Use ROLES constants
       if (role === ROLES.STUDENT) {
         
         const nameParts = name.trim().split(" ");
@@ -106,7 +91,7 @@ exports.addUser = async (req, res) => {
 
         await StudentProfile.create({
           userId: user._id,
-          departmentId: departmentId || null, // Can be null initially for students
+          departmentId: departmentId || null, 
           rollNumber: rollNumber || "TEMP-" + Date.now(), 
           firstName,      
           lastName,       
@@ -117,15 +102,24 @@ exports.addUser = async (req, res) => {
       } else if (role === ROLES.FACULTY) {
         if (!departmentId) throw new Error("Department ID is required for Faculty");
         
+        // --- FIX: Split Name & Add Required Fields ---
+        const nameParts = name.trim().split(" ");
+        const firstName = nameParts[0];
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
         await FacultyProfile.create({
           userId: user._id,
+          firstName,  // Required by Schema
+          lastName,   // Required by Schema
           departmentId,
           qualification,
-          designation: designation || "Assistant Professor"
+          designation: designation || "Assistant Professor",
+          joiningDate: new Date(),     // Required by Schema
+          employmentType: "PERMANENT"  // Required by Schema
         });
       }
     } catch (profileError) {
-      throw profileError; // Throw to the main catch block to trigger rollback
+      throw profileError; 
     }
 
     // 6. Send Credentials via Email
@@ -145,13 +139,10 @@ exports.addUser = async (req, res) => {
 
   } catch (err) {
     console.error("Add User Error:", err);
-
-    // 🛑 ROLLBACK: Delete the user if profile creation failed
     if (user && user._id) {
         console.log(`Rolling back creation for user: ${user._id}`);
         await User.findByIdAndDelete(user._id);
     }
-
     res.status(500).json({ error: err.message || "Failed to add user" });
   }
 };
@@ -200,8 +191,6 @@ exports.addCourse = async (req, res) => {
 exports.createSemester = async (req, res) => {
   try {
     const { name, code, academicYear, startDate, endDate, isActive } = req.body;
-
-    // Validation is now handled by 'validateSemester' middleware in route
 
     if (isActive === true) {
         await Semester.updateMany({}, { isActive: false });
@@ -256,7 +245,7 @@ exports.assignFaculty = async (req, res) => {
 };
 
 // =========================================================
-// 7. ENROLL STUDENT (Atomic + Anti-Duplicate Fix)
+// 7. ENROLL STUDENT
 // =========================================================
 exports.enrollStudent = async (req, res) => {
   try {
@@ -269,17 +258,12 @@ exports.enrollStudent = async (req, res) => {
     }
     const targetStudentId = studentProfile._id;
 
-    // -----------------------------------------------------
-    // 🚨 FIX: Prevent Multi-Section Enrollment
-    // -----------------------------------------------------
-    
-    // A. Get details of the requested offering
+    // 2. Prevent Multi-Section Enrollment
     const targetOffering = await CourseOffering.findById(courseOfferingId);
     if (!targetOffering) {
         return res.status(404).json({ message: "Course Offering not found" });
     }
 
-    // B. Find ALL offerings for this specific Course in this Semester
     const siblingOfferings = await CourseOffering.find({
         courseId: targetOffering.courseId,
         semesterId: targetOffering.semesterId
@@ -287,7 +271,6 @@ exports.enrollStudent = async (req, res) => {
 
     const validOfferingIds = siblingOfferings.map(off => off._id);
 
-    // C. Check if student is already enrolled in ANY of these sections
     const existingEnrollment = await Enrollment.findOne({
       studentId: targetStudentId,
       courseOfferingId: { $in: validOfferingIds },
@@ -300,7 +283,7 @@ exports.enrollStudent = async (req, res) => {
       });
     }
 
-    // 2. ATOMIC CAPACITY CHECK & RESERVATION
+    // 3. Atomic Capacity Check & Reservation
     const offering = await CourseOffering.findOneAndUpdate(
       { 
         _id: courseOfferingId, 
@@ -314,7 +297,6 @@ exports.enrollStudent = async (req, res) => {
         return res.status(400).json({ message: "Enrollment Failed: Class is Full" });
     }
 
-    // 3. Create Enrollment Record
     try {
         const enrollment = await Enrollment.create({
           studentId: targetStudentId,
@@ -325,7 +307,6 @@ exports.enrollStudent = async (req, res) => {
         res.status(201).json({ message: "Student Enrolled Successfully", enrollment });
 
     } catch (enrollError) {
-        // 🛑 ROLLBACK
         await CourseOffering.findByIdAndUpdate(courseOfferingId, { $inc: { currentEnrollment: -1 } });
         throw enrollError;
     }
@@ -337,15 +318,23 @@ exports.enrollStudent = async (req, res) => {
 };
 
 // =========================================================
-// 8. BROADCAST NOTICE
+// 8. BROADCAST NOTICE (Fixed Field Name)
 // =========================================================
 exports.broadcastNotice = async (req, res) => {
   try {
+    console.log("📣 Broadcast Request Received:", req.body); // Keep this for debugging
+
     const { title, message, target } = req.body;
 
-    await Announcement.create({
+    // Validation
+    if (!title || !message) {
+        return res.status(400).json({ error: "Title and Message are required." });
+    }
+
+    // ✅ FIX: Use 'message' to match the Schema (was previously 'content')
+    const newAnnouncement = await Announcement.create({
         title,
-        content: message,
+        message: message,             // <--- CHANGED FROM 'content' TO 'message'
         targetAudience: target || "ALL",
         date: new Date(),
         createdBy: req.user.id
@@ -353,61 +342,63 @@ exports.broadcastNotice = async (req, res) => {
 
     const io = req.app.get("socketio");
     if (io) {
-        const payload = { title, message, time: new Date().toLocaleTimeString() };
+        const payload = { 
+            title, 
+            message, 
+            time: new Date().toLocaleTimeString() 
+        };
+        
         if (target && target !== "ALL") {
             io.to(target).emit("receive_notice", { ...payload, target });
         } else {
             io.emit("receive_notice", { ...payload, target: "ALL" });
         }
     }
-    res.json({ message: "📢 Notice Posted & Broadcasted Successfully!" });
+    
+    res.status(201).json({ 
+        message: "📢 Notice Posted Successfully!", 
+        notice: newAnnouncement 
+    });
+
   } catch (err) {
-    res.status(500).json({ error: "Failed to send notice" });
+    console.error("❌ Broadcast Error:", err); // This helps you see the real error in terminal
+    res.status(500).json({ error: err.message || "Failed to send notice" });
   }
 };
 
 // =========================================================
-// 9. GET ALL USERS (With Pagination, Filtering & Search)
+// 9. GET ALL USERS
 // =========================================================
 exports.getAllUsers = async (req, res) => {
   try {
-    // 1. Extract Query Parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const role = req.query.role; 
-    const search = req.query.search; // 👈 New Search Parameter
+    const search = req.query.search; 
 
-    // 2. Build Query Object
     const query = {};
 
-    // Filter by Role (if provided)
     if (role) {
         query.role = role;
     }
 
-    // 🔎 SEARCH LOGIC: Match Name OR Email (Case Insensitive)
     if (search) {
-        // Clean the input to prevent Regex Injection (basic safety)
         const searchRegex = new RegExp(search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i');
-        
         query.$or = [
             { name: searchRegex },
             { email: searchRegex }
         ];
     }
 
-    // 3. Calculate Pagination
     const startIndex = (page - 1) * limit;
-    const total = await User.countDocuments(query); // Count filtered results
+    const total = await User.countDocuments(query); 
 
-    // 4. Fetch Data
     const users = await User.find(query)
-      .select("-passwordHash") // Security: Don't send passwords
-      .sort({ createdAt: -1 }) // Newest first
+      .select("-passwordHash") 
+      .sort({ createdAt: -1 }) 
       .skip(startIndex)
       .limit(limit);
 
-    // 5. Send Response
     res.status(200).json({
       success: true,
       count: users.length,
@@ -426,26 +417,22 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // =========================================================
-// 10. GET ALL COURSES (With Pagination)
+// 10. GET ALL COURSES
 // =========================================================
 exports.getAllCourses = async (req, res) => {
   try {
-    // 1. Pagination Params
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const startIndex = (page - 1) * limit;
 
-    // 2. Count Total
     const total = await Course.countDocuments();
 
-    // 3. Fetch Data with Pagination
     const courses = await Course.find()
       .populate("departmentId", "name code") 
-      .sort({ name: 1 }) // Alphabetical order
+      .sort({ name: 1 }) 
       .skip(startIndex)
       .limit(limit);
 
-    // 4. Send Response
     res.status(200).json({
       success: true,
       count: courses.length,
@@ -468,7 +455,6 @@ exports.getAllCourses = async (req, res) => {
 exports.getDashboardStats = async (req, res) => {
   try {
     const [studentCount, facultyCount, activeSemester, totalCourses] = await Promise.all([
-      // ✅ FIX: Use ROLES constants
       User.countDocuments({ role: ROLES.STUDENT }),
       User.countDocuments({ role: ROLES.FACULTY }),
       Semester.findOne({ isActive: true }).select("name code startDate endDate"),
@@ -506,7 +492,6 @@ exports.updateUser = async (req, res) => {
     
     await user.save();
 
-    // ✅ FIX: Use ROLES constants
     if (user.role === ROLES.STUDENT) {
         await StudentProfile.findOneAndUpdate({ userId: user._id }, { $set: profileData }, { new: true });
     } else if (user.role === ROLES.FACULTY) {
@@ -524,14 +509,11 @@ exports.updateUser = async (req, res) => {
 // =========================================================
 exports.deleteUser = async (req, res) => {
   try {
-    // RESTful Standard ID param
     const userId = req.params.id; 
-    
     const user = await User.findById(userId);
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // ✅ FIX: Use ROLES constants
     // 🅰️ IF STUDENT: Cascade Delete Everything
     if (user.role === ROLES.STUDENT) {
         const studentProfile = await StudentProfile.findOne({ userId: userId });
@@ -541,8 +523,6 @@ exports.deleteUser = async (req, res) => {
 
             // 1. Fix Course Enrollments
             const enrollments = await Enrollment.find({ studentId });
-            
-            // Parallel Updates
             await Promise.all(enrollments.map(enrollment => 
                 CourseOffering.findByIdAndUpdate(
                     enrollment.courseOfferingId,
@@ -550,9 +530,13 @@ exports.deleteUser = async (req, res) => {
                 )
             ));
 
-            // 2. Delete Related Data
+            // 2. Delete Related Data (FIXED: Added Marks, Attendance, Fee, Feedback)
             await Promise.all([
                 Enrollment.deleteMany({ studentId }),
+                Attendance.deleteMany({ studentId }),
+                Marks.deleteMany({ studentId }),
+                Fee.deleteMany({ studentId }),
+                Feedback.deleteMany({ studentId }), 
                 StudentProfile.deleteOne({ _id: studentId })
             ]);
         }
@@ -738,7 +722,6 @@ exports.getFeeStats = async (req, res) => {
 // 🕵️ HELPER: CLASH DETECTION (Minutes Based)
 // =========================================================
 const checkClash = async ({ day, startTime, endTime, roomNumber, semesterId, facultyId, excludeId = null }) => {
-  // startTime and endTime are now INTEGERS (Minutes)
   const start = parseInt(startTime); 
   const end = parseInt(endTime);
 
@@ -751,10 +734,9 @@ const checkClash = async ({ day, startTime, endTime, roomNumber, semesterId, fac
   const existingEntries = await Timetable.find(query).populate("courseOfferingId");
 
   for (const entry of existingEntries) {
-    const eStart = entry.startTime; // Already minutes in DB
+    const eStart = entry.startTime; 
     const eEnd = entry.endTime;
 
-    // Check Overlap
     if (start < eEnd && end > eStart) {
       if (entry.roomNumber === roomNumber) {
         throw new Error(`Room ${roomNumber} is booked (${entry.startTime}-${entry.endTime})`);
@@ -769,13 +751,12 @@ const checkClash = async ({ day, startTime, endTime, roomNumber, semesterId, fac
 };
 
 // =========================================================
-// 20. CREATE TIMETABLE ENTRY (Converts Time)
+// 20. CREATE TIMETABLE ENTRY
 // =========================================================
 exports.createTimetableEntry = async (req, res) => {
   try {
     const { courseOfferingId, dayOfWeek, startTime, endTime, roomNumber } = req.body;
 
-    // 1. Convert Strings "HH:mm" to Minutes (Int)
     const startMin = convertToMinutes(startTime);
     const endMin = convertToMinutes(endTime);
 
@@ -784,7 +765,6 @@ exports.createTimetableEntry = async (req, res) => {
     const offering = await CourseOffering.findById(courseOfferingId);
     if (!offering) return res.status(404).json({ message: "Course Offering not found" });
 
-    // 2. Run Clash Check
     await checkClash({
       day: dayOfWeek,
       startTime: startMin,
@@ -794,7 +774,6 @@ exports.createTimetableEntry = async (req, res) => {
       facultyId: offering.facultyId
     });
 
-    // 3. Save as Minutes
     const timetable = await Timetable.create({
       courseOfferingId,
       dayOfWeek,
@@ -811,7 +790,7 @@ exports.createTimetableEntry = async (req, res) => {
 };
 
 // =========================================================
-// 21. GET TIMETABLE (Sorted Numerically)
+// 21. GET TIMETABLE
 // =========================================================
 exports.getTimetable = async (req, res) => {
   try {
@@ -825,7 +804,7 @@ exports.getTimetable = async (req, res) => {
         path: "courseOfferingId",
         populate: [ { path: "courseId" }, { path: "facultyId" } ]
       })
-      .sort({ dayOfWeek: 1, startTime: 1 }); // Sort works perfectly with Numbers
+      .sort({ dayOfWeek: 1, startTime: 1 });
 
     res.status(200).json({ count: schedule.length, data: schedule });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -845,19 +824,17 @@ exports.deleteTimetableEntry = async (req, res) => {
 };
 
 // =========================================================
-// 23. FIND FREE ROOMS (Converts Time)
+// 23. FIND FREE ROOMS
 // =========================================================
 exports.findFreeRooms = async (req, res) => {
   try {
     const { dayOfWeek, startTime, endTime } = req.body;
     
-    // Convert Inputs
     const startMin = convertToMinutes(startTime);
     const endMin = convertToMinutes(endTime);
 
     const allClassrooms = await Classroom.find({ isActive: true });
     
-    // Check overlaps using Minutes
     const busySlots = await Timetable.find({
         dayOfWeek,
         $or: [
@@ -904,7 +881,7 @@ exports.deleteClassroom = async (req, res) => {
 };
 
 // =========================================================
-// 🕵️ HELPER: EXAM CLASH DETECTION (Minutes Based)
+// 🕵️ HELPER: EXAM CLASH DETECTION
 // =========================================================
 const checkExamClash = async ({ date, startTime, endTime, roomNumber, semesterId, facultyId }) => {
   const start = parseInt(startTime);
@@ -927,7 +904,7 @@ const checkExamClash = async ({ date, startTime, endTime, roomNumber, semesterId
 };
 
 // =========================================================
-// 25. EXAM SCHEDULER ACTIONS (Converts Time)
+// 25. EXAM SCHEDULER ACTIONS
 // =========================================================
 exports.addExamSlot = async (req, res) => {
   try {
@@ -960,7 +937,7 @@ exports.getExamSchedule = async (req, res) => {
 
     const exams = await ExamSchedule.find(query)
       .populate({ path: "courseOfferingId", populate: [{ path: "courseId" }, { path: "facultyId" }] })
-      .sort({ date: 1, startTime: 1 }); // Numeric Sort
+      .sort({ date: 1, startTime: 1 });
 
     res.status(200).json(exams);
   } catch (err) { res.status(500).json({ error: err.message }); }
